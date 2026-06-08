@@ -2,18 +2,41 @@
 
 from __future__ import annotations
 
-from datetime import date
+import calendar
+from datetime import date, timedelta
 
+from wallet.core.notifications import Notifier
 from wallet.models import Reminder
 from wallet.repositories import ReminderRepository
 
 
-class ReminderService:
-    """Создание напоминаний и выборка предстоящих платежей.
+def _add_months(d: date, months: int) -> date:
+    """Прибавить месяцы с корректировкой числа под длину месяца."""
+    index = d.month - 1 + months
+    year = d.year + index // 12
+    month = index % 12 + 1
+    day = min(d.day, calendar.monthrange(year, month)[1])
+    return date(year, month, day)
 
-    Фактическая доставка уведомлений выполняется кроссплатформенно через
-    библиотеку plyer на уровне слоя представления; сервис отвечает за
-    хранение и выборку напоминаний.
+
+def next_due_date(current: date, period: str) -> date:
+    """Вычислить следующую дату платежа по периодичности."""
+    if period == "daily":
+        return current + timedelta(days=1)
+    if period == "weekly":
+        return current + timedelta(weeks=1)
+    if period == "monthly":
+        return _add_months(current, 1)
+    if period == "yearly":
+        return _add_months(current, 12)
+    raise ValueError(f"Неизвестная периодичность: {period!r}")
+
+
+class ReminderService:
+    """Создание напоминаний, выборка предстоящих и рассылка уведомлений.
+
+    Доставка уведомлений делегируется объекту Notifier (plyer на устройстве,
+    заглушка в средах без графической оболочки).
     """
 
     def __init__(self, reminders: ReminderRepository):
@@ -30,3 +53,23 @@ class ReminderService:
 
     def list(self) -> list[Reminder]:
         return self.reminders.list()
+
+    def advance(self, reminder_id: int) -> Reminder:
+        """Перенести повторяющееся напоминание на следующий период."""
+        reminder = self.reminders.get(reminder_id)
+        if reminder is None:
+            raise ValueError("Напоминание не найдено")
+        if reminder.is_repeating and reminder.period:
+            reminder.due_date = next_due_date(reminder.due_date, reminder.period)
+            self.reminders.update(reminder)
+        return reminder
+
+    def notify_due(self, notifier: Notifier, until: date | None = None) -> int:
+        """Разослать уведомления по наступившим напоминаниям. Возвращает их число."""
+        due = self.upcoming(until)
+        for reminder in due:
+            notifier.notify(
+                title=f"Платёж: {reminder.title}",
+                message=f"Сумма {reminder.amount}, срок {reminder.due_date}",
+            )
+        return len(due)
