@@ -1,5 +1,6 @@
 # Runtime dependencies
 kivy>=2.3.0            # кроссплатформенный GUI
+kivymd>=1.2.0          # Material Design компоненты поверх Kivy
 cryptography>=42.0     # AES-256-GCM шифрование локальной БД, PBKDF2
 plyer>=2.1            # кроссплатформенные локальные уведомления (напоминания)
 matplotlib>=3.8        # построение диаграмм для аналитики
