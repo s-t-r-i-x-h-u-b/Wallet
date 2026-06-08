@@ -1,7 +1,7 @@
 """Пользовательский интерфейс на KivyMD (Material Design).
 
 Экран входа открывает зашифрованное хранилище по паролю, далее — нижняя
-панель вкладок: Главная, Операции, Цели, Аналитика.
+панель вкладок: Главная, Операции, Платежи, Цели, Аналитика.
 
 KivyMD/Kivy импортируются «мягко»: если фреймворк не установлен (например,
 в среде запуска тестов), модуль остаётся импортируемым, а попытка запустить
@@ -10,14 +10,23 @@ GUI сообщает о необходимости установить зави
 
 from __future__ import annotations
 
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from wallet.app_context import AppContext
 from wallet.core import vault
-from wallet.models import CategoryKind, Transaction, TransactionType
+from wallet.models import CategoryKind, Reminder, Transaction, TransactionType
 
 DATA_DIR = Path.home() / ".wallet"
+NO_CATEGORY = "(без категории)"
+PERIOD_MAP = {
+    "Ежемесячно": "monthly",
+    "Еженедельно": "weekly",
+    "Ежедневно": "daily",
+    "Ежегодно": "yearly",
+}
+PERIOD_LABELS = {v: k for k, v in PERIOD_MAP.items()}
 
 try:  # pragma: no cover - наличие GUI зависит от среды
     from kivy.lang import Builder
@@ -120,34 +129,99 @@ ScreenManager:
                 icon: 'format-list-bulleted'
                 MDBoxLayout:
                     orientation: 'vertical'
-                    padding: dp(16)
+                    padding: dp(12)
                     spacing: dp(6)
                     MDTextField:
                         id: tx_amount
                         hint_text: 'Сумма'
                         input_filter: 'float'
-                    MDTextField:
-                        id: tx_category
-                        hint_text: 'Категория (необязательно)'
-                    MDTextField:
-                        id: tx_note
-                        hint_text: 'Комментарий'
+                    MDBoxLayout:
+                        size_hint_y: None
+                        height: dp(48)
+                        spacing: dp(8)
+                        Spinner:
+                            id: tx_type
+                            text: 'Расход'
+                            values: ['Расход', 'Доход']
+                        Spinner:
+                            id: tx_category
+                            text: 'Категория'
+                    MDBoxLayout:
+                        size_hint_y: None
+                        height: dp(48)
+                        spacing: dp(8)
+                        MDFlatButton:
+                            id: tx_date_btn
+                            text: 'Дата: сегодня'
+                            on_release: app.open_tx_date_picker()
+                        MDTextField:
+                            id: tx_note
+                            hint_text: 'Комментарий'
+                    MDRaisedButton:
+                        text: 'Добавить операцию'
+                        pos_hint: {'center_x': 0.5}
+                        on_release: app.add_transaction()
                     MDBoxLayout:
                         size_hint_y: None
                         height: dp(48)
                         spacing: dp(8)
                         MDLabel:
-                            text: 'Расход (выкл — доход)'
-                        MDSwitch:
-                            id: tx_is_expense
-                            active: True
-                    MDRaisedButton:
-                        text: 'Добавить операцию'
-                        pos_hint: {'center_x': 0.5}
-                        on_release: app.add_transaction()
+                            text: 'История:'
+                            size_hint_x: None
+                            width: dp(70)
+                        Spinner:
+                            id: flt_type
+                            text: 'Все'
+                            values: ['Все', 'Доход', 'Расход']
+                            on_text: app.apply_filter()
+                        Spinner:
+                            id: flt_category
+                            text: 'Все'
+                            on_text: app.apply_filter()
                     ScrollView:
                         MDList:
                             id: tx_list
+
+            MDBottomNavigationItem:
+                name: 'payments'
+                text: 'Платежи'
+                icon: 'calendar-clock'
+                MDBoxLayout:
+                    orientation: 'vertical'
+                    padding: dp(12)
+                    spacing: dp(6)
+                    MDTextField:
+                        id: rem_title
+                        hint_text: 'Название платежа'
+                    MDTextField:
+                        id: rem_amount
+                        hint_text: 'Сумма'
+                        input_filter: 'float'
+                    MDBoxLayout:
+                        size_hint_y: None
+                        height: dp(48)
+                        spacing: dp(8)
+                        MDFlatButton:
+                            id: rem_date_btn
+                            text: 'Срок: сегодня'
+                            on_release: app.open_rem_date_picker()
+                        Spinner:
+                            id: rem_period
+                            text: 'Разовый'
+                            values: ['Разовый', 'Ежемесячно', 'Еженедельно', 'Ежедневно', 'Ежегодно']
+                    MDRaisedButton:
+                        text: 'Добавить платёж'
+                        pos_hint: {'center_x': 0.5}
+                        on_release: app.add_reminder()
+                    MDLabel:
+                        text: 'Нажмите на платёж: разовый — оплатить, повторяющийся — перенести'
+                        theme_text_color: 'Secondary'
+                        font_style: 'Caption'
+                        size_hint_y: None
+                        height: dp(28)
+                    ScrollView:
+                        MDList:
+                            id: rem_list
 
             MDBottomNavigationItem:
                 name: 'goals'
@@ -155,7 +229,7 @@ ScreenManager:
                 icon: 'target'
                 MDBoxLayout:
                     orientation: 'vertical'
-                    padding: dp(16)
+                    padding: dp(12)
                     spacing: dp(6)
                     MDTextField:
                         id: goal_title
@@ -168,6 +242,22 @@ ScreenManager:
                         text: 'Создать цель'
                         pos_hint: {'center_x': 0.5}
                         on_release: app.add_goal()
+                    MDBoxLayout:
+                        size_hint_y: None
+                        height: dp(48)
+                        spacing: dp(8)
+                        Spinner:
+                            id: goal_select
+                            text: 'Цель'
+                        MDTextField:
+                            id: goal_amount
+                            hint_text: 'Сумма пополнения'
+                            input_filter: 'float'
+                        MDRaisedButton:
+                            text: 'Пополнить'
+                            size_hint_x: None
+                            width: dp(120)
+                            on_release: app.contribute_goal()
                     ScrollView:
                         MDList:
                             id: goals_list
@@ -178,12 +268,18 @@ ScreenManager:
                 icon: 'chart-pie'
                 MDBoxLayout:
                     orientation: 'vertical'
-                    padding: dp(16)
+                    padding: dp(12)
                     spacing: dp(8)
-                    MDRaisedButton:
-                        text: 'Обновить диаграмму'
-                        pos_hint: {'center_x': 0.5}
-                        on_release: app.build_chart()
+                    MDBoxLayout:
+                        size_hint_y: None
+                        height: dp(48)
+                        spacing: dp(8)
+                        MDRaisedButton:
+                            text: 'Расходы по категориям'
+                            on_release: app.build_pie()
+                        MDRaisedButton:
+                            text: 'Динамика по месяцам'
+                            on_release: app.build_dynamics()
                     Image:
                         id: chart_img
 """
@@ -201,6 +297,8 @@ ScreenManager:
             super().__init__(**kwargs)
             self.context: AppContext | None = None
             self.account = None
+            self.tx_date = date.today()
+            self.rem_date = date.today()
 
         def build(self):
             self.title = "Wallet"
@@ -223,6 +321,23 @@ ScreenManager:
                 Snackbar(text=text).open()
             except Exception:  # noqa: BLE001
                 print(text)
+
+        def _categories(self):
+            return self.context.category_service.list()
+
+        def _category_by_name(self, name: str):
+            for c in self._categories():
+                if c.name == name:
+                    return c
+            return None
+
+        def _cat_name(self, category_id):
+            if category_id is None:
+                return ""
+            for c in self._categories():
+                if c.id == category_id:
+                    return c.name
+            return ""
 
         # --- аутентификация ---
 
@@ -265,19 +380,48 @@ ScreenManager:
             self.account = accounts[0] if accounts else \
                 self.context.account_service.create("Основной счёт")
             self.context.save()
+            self.tx_date = date.today()
+            self.rem_date = date.today()
             self._login_ids().status.text = ""
             self.root.current = "main"
+            ids = self._main_ids()
+            ids.tx_date_btn.text = f"Дата: {self.tx_date.strftime('%d.%m.%Y')}"
+            ids.rem_date_btn.text = f"Срок: {self.rem_date.strftime('%d.%m.%Y')}"
             self.refresh_all()
+
+        # --- выбор даты ---
+
+        def open_tx_date_picker(self):
+            from kivymd.uix.pickers import MDDatePicker
+
+            picker = MDDatePicker()
+            picker.bind(on_save=self._on_tx_date_save)
+            picker.open()
+
+        def _on_tx_date_save(self, instance, value, date_range):
+            self.tx_date = value
+            self._main_ids().tx_date_btn.text = f"Дата: {value.strftime('%d.%m.%Y')}"
+
+        def open_rem_date_picker(self):
+            from kivymd.uix.pickers import MDDatePicker
+
+            picker = MDDatePicker()
+            picker.bind(on_save=self._on_rem_date_save)
+            picker.open()
+
+        def _on_rem_date_save(self, instance, value, date_range):
+            self.rem_date = value
+            self._main_ids().rem_date_btn.text = f"Срок: {value.strftime('%d.%m.%Y')}"
 
         # --- операции ---
 
-        def _category_id(self, name: str, kind: CategoryKind):
+        def _resolve_category(self, name: str, kind: CategoryKind):
             name = (name or "").strip()
-            if not name:
+            if not name or name in (NO_CATEGORY, "Категория"):
                 return None
-            for c in self.context.category_service.list():
-                if c.name.lower() == name.lower():
-                    return c.id
+            existing = self._category_by_name(name)
+            if existing:
+                return existing.id
             return self.context.category_service.add(name, kind).id
 
         def add_transaction(self):
@@ -287,17 +431,19 @@ ScreenManager:
             except (InvalidOperation, ValueError):
                 self._toast("Введите корректную сумму")
                 return
-            is_expense = ids.tx_is_expense.active
+            is_expense = ids.tx_type.text == "Расход"
             tx_type = TransactionType.EXPENSE if is_expense else TransactionType.INCOME
             kind = CategoryKind.EXPENSE if is_expense else CategoryKind.INCOME
+            created_at = datetime.combine(self.tx_date, datetime.now().time())
             try:
                 self.context.transaction_service.add(
                     Transaction(
                         amount=amount,
                         type=tx_type,
                         account_id=self.account.id,
-                        category_id=self._category_id(ids.tx_category.text, kind),
+                        category_id=self._resolve_category(ids.tx_category.text, kind),
                         note=ids.tx_note.text,
+                        created_at=created_at,
                     )
                 )
             except ValueError as exc:
@@ -305,10 +451,18 @@ ScreenManager:
                 return
             self.context.save()
             ids.tx_amount.text = ""
-            ids.tx_category.text = ""
             ids.tx_note.text = ""
+            self.tx_date = date.today()
+            ids.tx_date_btn.text = f"Дата: {self.tx_date.strftime('%d.%m.%Y')}"
             self.refresh_all()
             self._toast("Операция добавлена")
+
+        def apply_filter(self):
+            if not self.context:
+                return
+            self._refresh_transactions()
+
+        # --- цели ---
 
         def add_goal(self):
             ids = self._main_ids()
@@ -328,10 +482,86 @@ ScreenManager:
             self.refresh_all()
             self._toast("Цель создана")
 
-        def build_chart(self):
+        def contribute_goal(self):
+            ids = self._main_ids()
+            title = ids.goal_select.text
+            goal = next((g for g in self.context.goal_service.list()
+                         if g.title == title), None)
+            if goal is None:
+                self._toast("Выберите цель")
+                return
+            try:
+                amount = Decimal(ids.goal_amount.text)
+                self.context.goal_service.contribute(goal.id, amount)
+            except (InvalidOperation, ValueError) as exc:
+                self._toast("Введите корректную сумму пополнения"
+                            if isinstance(exc, InvalidOperation) else str(exc))
+                return
+            self.context.save()
+            ids.goal_amount.text = ""
+            self.refresh_all()
+            self._toast("Цель пополнена")
+
+        # --- платежи (напоминания) ---
+
+        def add_reminder(self):
+            ids = self._main_ids()
+            title = ids.rem_title.text.strip()
+            if not title:
+                self._toast("Введите название платежа")
+                return
+            try:
+                amount = Decimal(ids.rem_amount.text)
+            except (InvalidOperation, ValueError):
+                self._toast("Введите корректную сумму")
+                return
+            period = PERIOD_MAP.get(ids.rem_period.text, "")
+            try:
+                self.context.reminder_service.schedule(
+                    Reminder(
+                        title=title,
+                        amount=amount,
+                        due_date=self.rem_date,
+                        is_repeating=bool(period),
+                        period=period,
+                    )
+                )
+            except ValueError as exc:
+                self._toast(str(exc))
+                return
+            self.context.save()
+            ids.rem_title.text = ""
+            ids.rem_amount.text = ""
+            self.rem_date = date.today()
+            ids.rem_date_btn.text = f"Срок: {self.rem_date.strftime('%d.%m.%Y')}"
+            self.refresh_all()
+            self._toast("Платёж добавлен")
+
+        def pay_reminder(self, reminder_id: int, repeating: bool):
+            if repeating:
+                self.context.reminder_service.advance(reminder_id)
+                self._toast("Платёж перенесён на следующий период")
+            else:
+                self.context.reminders.delete(reminder_id)
+                self._toast("Платёж отмечен оплаченным")
+            self.context.save()
+            self._refresh_reminders()
+
+        # --- аналитика ---
+
+        def build_pie(self):
             DATA_DIR.mkdir(parents=True, exist_ok=True)
-            path = DATA_DIR / "chart.png"
+            path = DATA_DIR / "chart_pie.png"
             self.context.chart_service.expenses_pie(path)
+            self._set_chart(path)
+
+        def build_dynamics(self):
+            DATA_DIR.mkdir(parents=True, exist_ok=True)
+            path = DATA_DIR / "chart_dyn.png"
+            self.context.chart_service.dynamics_chart(path)
+            self._set_chart(path)
+
+        def _set_chart(self, path):
             img = self._main_ids().chart_img
             img.source = str(path)
             img.reload()
@@ -339,9 +569,25 @@ ScreenManager:
         # --- обновление экранов ---
 
         def refresh_all(self):
+            if not self.context:
+                return
+            self._populate_spinners()
             self._refresh_dashboard()
             self._refresh_transactions()
             self._refresh_goals()
+            self._refresh_reminders()
+
+        def _populate_spinners(self):
+            ids = self._main_ids()
+            names = [c.name for c in self._categories()]
+            ids.tx_category.values = [NO_CATEGORY] + names
+            if ids.tx_category.text in ("Категория", ""):
+                ids.tx_category.text = NO_CATEGORY
+            ids.flt_category.values = ["Все"] + names
+            goals = [g.title for g in self.context.goal_service.list()]
+            ids.goal_select.values = goals
+            if goals and ids.goal_select.text in ("Цель", ""):
+                ids.goal_select.text = goals[0]
 
         def _refresh_dashboard(self):
             ids = self._main_ids()
@@ -359,14 +605,26 @@ ScreenManager:
 
         def _refresh_transactions(self):
             ids = self._main_ids()
+            tx_type = None
+            if ids.flt_type.text == "Доход":
+                tx_type = TransactionType.INCOME
+            elif ids.flt_type.text == "Расход":
+                tx_type = TransactionType.EXPENSE
+            category_id = None
+            if ids.flt_category.text not in ("Все", ""):
+                cat = self._category_by_name(ids.flt_category.text)
+                category_id = cat.id if cat else -1  # -1 => ничего не найдётся
             ids.tx_list.clear_widgets()
-            for tx in self.context.transaction_service.list():
+            for tx in self.context.transaction_service.list(
+                category_id=category_id, tx_type=tx_type
+            ):
                 sign = "−" if tx.type == TransactionType.EXPENSE else "+"
+                parts = [p for p in (tx.note, self._cat_name(tx.category_id)) if p]
+                parts.append(tx.created_at.strftime("%d.%m.%Y"))
                 ids.tx_list.add_widget(
                     TwoLineListItem(
                         text=f"{sign}{tx.amount} ₽",
-                        secondary_text=(tx.note or "")
-                        + "  " + tx.created_at.strftime("%d.%m.%Y"),
+                        secondary_text=" · ".join(parts),
                     )
                 )
 
@@ -382,6 +640,22 @@ ScreenManager:
                         f" ({percent}%)",
                     )
                 )
+
+        def _refresh_reminders(self):
+            ids = self._main_ids()
+            ids.rem_list.clear_widgets()
+            for r in sorted(self.context.reminder_service.list(),
+                            key=lambda x: x.due_date):
+                period = PERIOD_LABELS.get(r.period, "разовый")
+                item = TwoLineListItem(
+                    text=f"{r.title} — {r.amount} ₽",
+                    secondary_text=f"срок {r.due_date.strftime('%d.%m.%Y')} · {period}",
+                )
+                item.bind(
+                    on_release=lambda inst, rid=r.id, rep=r.is_repeating:
+                    self.pay_reminder(rid, rep)
+                )
+                ids.rem_list.add_widget(item)
 
 
 def run() -> None:
