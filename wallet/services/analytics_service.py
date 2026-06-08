@@ -54,3 +54,26 @@ class AnalyticsService:
             Decimal("0"),
         )
         return {"income": income, "expense": expense, "balance": income - expense}
+
+    def monthly_dynamics(self, months: int = 6) -> list[tuple[str, Decimal, Decimal]]:
+        """Динамика доходов и расходов по месяцам.
+
+        Возвращает список кортежей (метка_месяца, доходы, расходы) за последние
+        `months` месяцев, в которых были операции, в хронологическом порядке.
+        """
+        buckets: dict[tuple[int, int], dict[str, Decimal]] = {}
+        for tx in self.transactions.list_filtered():
+            key = (tx.created_at.year, tx.created_at.month)
+            bucket = buckets.setdefault(
+                key, {"income": Decimal("0"), "expense": Decimal("0")}
+            )
+            if tx.type == TransactionType.INCOME:
+                bucket["income"] += tx.amount
+            else:
+                bucket["expense"] += tx.amount
+
+        result: list[tuple[str, Decimal, Decimal]] = []
+        for year, month in sorted(buckets)[-months:]:
+            data = buckets[(year, month)]
+            result.append((f"{month:02d}.{year}", data["income"], data["expense"]))
+        return result

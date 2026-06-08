@@ -38,3 +38,10 @@ def test_income_expense_bar_creates_png(context, account, tmp_path):
 def test_pie_with_no_data(context, tmp_path):
     path = context.chart_service.expenses_pie(tmp_path / "empty.png")
     assert path.exists()
+
+
+def test_dynamics_chart_creates_png(context, account, tmp_path):
+    _seed(context, account)
+    path = context.chart_service.dynamics_chart(tmp_path / "dyn.png")
+    assert path.exists()
+    assert path.read_bytes()[:8] == PNG_MAGIC

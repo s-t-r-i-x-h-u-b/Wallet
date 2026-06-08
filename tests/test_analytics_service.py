@@ -27,6 +27,28 @@ def test_expenses_by_category(context, account):
     assert by_cat["Транспорт"] == Decimal("150")
 
 
+def test_monthly_dynamics(context, account):
+    from datetime import datetime
+
+    context.transaction_service.add(
+        Transaction(amount=Decimal("1000"), type=TransactionType.INCOME,
+                    account_id=account.id, created_at=datetime(2026, 1, 10))
+    )
+    context.transaction_service.add(
+        Transaction(amount=Decimal("300"), type=TransactionType.EXPENSE,
+                    account_id=account.id, created_at=datetime(2026, 1, 20))
+    )
+    context.transaction_service.add(
+        Transaction(amount=Decimal("500"), type=TransactionType.INCOME,
+                    account_id=account.id, created_at=datetime(2026, 2, 5))
+    )
+    dynamics = context.analytics.monthly_dynamics()
+    assert dynamics == [
+        ("01.2026", Decimal("1000"), Decimal("300")),
+        ("02.2026", Decimal("500"), Decimal("0")),
+    ]
+
+
 def test_income_vs_expense(context, account):
     context.transaction_service.add(
         Transaction(amount=Decimal("2000"), type=TransactionType.INCOME,
