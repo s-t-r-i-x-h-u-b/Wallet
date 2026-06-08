@@ -66,3 +66,29 @@ class ChartService:
         fig.savefig(path)
         plt.close(fig)
         return Path(path)
+
+    def dynamics_chart(self, path: str | Path, months: int = 6) -> Path:
+        """Диаграмма динамики доходов и расходов по месяцам."""
+        data = self.analytics.monthly_dynamics(months)
+        labels = [d[0] for d in data]
+        incomes = [float(d[1]) for d in data]
+        expenses = [float(d[2]) for d in data]
+
+        fig, ax = plt.subplots()
+        if data:
+            positions = range(len(labels))
+            width = 0.4
+            ax.bar([p - width / 2 for p in positions], incomes, width,
+                   label="Доходы", color="#4caf50")
+            ax.bar([p + width / 2 for p in positions], expenses, width,
+                   label="Расходы", color="#e53935")
+            ax.set_xticks(list(positions))
+            ax.set_xticklabels(labels, rotation=45, ha="right")
+            ax.legend()
+        else:
+            ax.text(0.5, 0.5, "Нет данных", ha="center", va="center")
+        ax.set_title("Динамика по месяцам")
+        fig.tight_layout()
+        fig.savefig(path)
+        plt.close(fig)
+        return Path(path)
