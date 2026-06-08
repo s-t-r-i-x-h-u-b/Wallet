@@ -35,6 +35,35 @@ class TransactionService:
         self._apply_to_balance(tx, sign=-1)
         self.transactions.delete(transaction_id)
 
+    def edit(
+        self,
+        transaction_id: int,
+        amount: Optional[Decimal] = None,
+        category_id: Optional[int] = None,
+        note: Optional[str] = None,
+        tx_type: Optional[TransactionType] = None,
+    ) -> Transaction:
+        """Изменить транзакцию с корректным пересчётом баланса счёта."""
+        tx = self.transactions.get(transaction_id)
+        if tx is None:
+            raise ValueError("Транзакция не найдена")
+
+        self._apply_to_balance(tx, sign=-1)  # откатить прежнее влияние
+        if amount is not None:
+            if amount <= 0:
+                raise ValueError("Сумма операции должна быть положительной")
+            tx.amount = amount
+        if category_id is not None:
+            tx.category_id = category_id
+        if note is not None:
+            tx.note = note
+        if tx_type is not None:
+            tx.type = tx_type
+
+        self.transactions.update(tx)
+        self._apply_to_balance(tx, sign=1)  # применить новое влияние
+        return tx
+
     def list(
         self,
         account_id: Optional[int] = None,
