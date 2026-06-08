@@ -69,6 +69,13 @@ CREATE TABLE IF NOT EXISTS reminders (
     is_repeating INTEGER NOT NULL DEFAULT 0,
     period       TEXT
 );
+
+-- Индексы для ускорения частых выборок (история, фильтры, аналитика)
+CREATE INDEX IF NOT EXISTS idx_tx_account   ON transactions(account_id);
+CREATE INDEX IF NOT EXISTS idx_tx_category  ON transactions(category_id);
+CREATE INDEX IF NOT EXISTS idx_tx_type      ON transactions(type);
+CREATE INDEX IF NOT EXISTS idx_tx_created   ON transactions(created_at);
+CREATE INDEX IF NOT EXISTS idx_reminders_due ON reminders(due_date);
 """
 
 
