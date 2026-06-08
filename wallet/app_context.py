@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 from wallet.core.db import Database
-from wallet.core.security import EncryptionManager, derive_key, generate_salt
+from wallet.core.notifications import Notifier, default_notifier
 from wallet.repositories import (
     AccountRepository,
     CategoryRepository,
@@ -21,9 +21,11 @@ from wallet.repositories import (
     UserRepository,
 )
 from wallet.services import (
+    AccountService,
     AnalyticsService,
     AuthService,
     CategoryService,
+    ChartService,
     GoalService,
     ReminderService,
     TransactionService,
@@ -33,8 +35,9 @@ from wallet.services import (
 class AppContext:
     """Контейнер зависимостей приложения."""
 
-    def __init__(self, db: Database):
+    def __init__(self, db: Database, notifier: Optional[Notifier] = None):
         self.db = db
+        self.notifier = notifier or default_notifier()
         conn = db.connection
 
         # Слой доступа к данным
@@ -47,21 +50,27 @@ class AppContext:
 
         # Слой бизнес-логики
         self.auth = AuthService(self.users)
+        self.account_service = AccountService(self.accounts)
         self.transaction_service = TransactionService(self.transactions, self.accounts)
         self.category_service = CategoryService(self.categories)
         self.goal_service = GoalService(self.goals)
         self.reminder_service = ReminderService(self.reminders)
         self.analytics = AnalyticsService(self.transactions, self.categories)
+        self.chart_service = ChartService(self.analytics)
 
     @classmethod
-    def open_encrypted(cls, path: str | Path, password: str, salt: Optional[bytes] = None) -> "AppContext":
-        """Открыть зашифрованную БД, выведя ключ из пароля пользователя."""
-        if salt is None:
-            salt = generate_salt()
-        encryption = EncryptionManager(derive_key(password, salt))
-        db = Database(path=path, encryption=encryption)
-        db.connect()
-        return cls(db)
+    def init_vault(cls, data_dir: str | Path, password: str) -> "AppContext":
+        """Создать новое зашифрованное хранилище и открыть контекст."""
+        from wallet.core import vault
+
+        return cls(vault.init_vault(data_dir, password))
+
+    @classmethod
+    def open_vault(cls, data_dir: str | Path, password: str) -> "AppContext":
+        """Открыть существующее хранилище по паролю."""
+        from wallet.core import vault
+
+        return cls(vault.open_vault(data_dir, password))
 
     def save(self) -> None:
         self.db.save()
