@@ -39,5 +39,29 @@ class GoalService:
         self.goals.update(goal)
         return goal
 
+    def update(
+        self,
+        goal_id: int,
+        title: Optional[str] = None,
+        target_amount: Optional[Decimal] = None,
+    ) -> Goal:
+        """Изменить название и/или целевую сумму цели."""
+        goal = self.goals.get(goal_id)
+        if goal is None:
+            raise ValueError("Цель не найдена")
+        if title is not None:
+            if not title.strip():
+                raise ValueError("Название цели не может быть пустым")
+            goal.title = title.strip()
+        if target_amount is not None:
+            if target_amount <= 0:
+                raise ValueError("Целевая сумма должна быть положительной")
+            goal.target_amount = target_amount
+        self.goals.update(goal)
+        return goal
+
+    def delete(self, goal_id: int) -> None:
+        self.goals.delete(goal_id)
+
     def list(self) -> list[Goal]:
         return self.goals.list()

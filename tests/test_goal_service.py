@@ -31,3 +31,17 @@ def test_goal_reached(context):
 def test_invalid_target_rejected(context):
     with pytest.raises(ValueError):
         context.goal_service.create("Плохая цель", Decimal("0"))
+
+
+def test_update_goal(context):
+    goal = context.goal_service.create("Старое", Decimal("1000"))
+    context.goal_service.update(goal.id, title="Новое", target_amount=Decimal("2000"))
+    updated = context.goals.get(goal.id)
+    assert updated.title == "Новое"
+    assert updated.target_amount == Decimal("2000")
+
+
+def test_delete_goal(context):
+    goal = context.goal_service.create("Удалить", Decimal("1000"))
+    context.goal_service.delete(goal.id)
+    assert context.goals.get(goal.id) is None
