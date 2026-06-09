@@ -18,12 +18,13 @@ import hashlib
 import hmac
 import os
 
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from Crypto.Cipher import AES
 
 PBKDF2_ITERATIONS = 200_000
 KEY_LENGTH = 32  # 256 бит -> AES-256
 SALT_LENGTH = 16
 NONCE_LENGTH = 12
+TAG_LENGTH = 16
 
 
 def generate_salt() -> bytes:
@@ -60,7 +61,7 @@ class EncryptionManager:
     def __init__(self, key: bytes):
         if len(key) != KEY_LENGTH:
             raise ValueError(f"Ключ должен быть длиной {KEY_LENGTH} байт")
-        self._aesgcm = AESGCM(key)
+        self._key = key
 
     @classmethod
     def from_password(cls, password: str, salt: bytes) -> "EncryptionManager":
@@ -68,12 +69,16 @@ class EncryptionManager:
         return cls(derive_key(password, salt))
 
     def encrypt(self, data: bytes) -> bytes:
-        """Зашифровать данные. Результат: nonce(12) + шифртекст."""
+        """Зашифровать данные. Результат: nonce(12) + tag(16) + шифртекст."""
         nonce = os.urandom(NONCE_LENGTH)
-        ciphertext = self._aesgcm.encrypt(nonce, data, None)
-        return nonce + ciphertext
+        cipher = AES.new(self._key, AES.MODE_GCM, nonce=nonce)
+        ciphertext, tag = cipher.encrypt_and_digest(data)
+        return nonce + tag + ciphertext
 
     def decrypt(self, token: bytes) -> bytes:
-        """Расшифровать данные. При неверном ключе будет исключение."""
-        nonce, ciphertext = token[:NONCE_LENGTH], token[NONCE_LENGTH:]
-        return self._aesgcm.decrypt(nonce, ciphertext, None)
+        """Расшифровать данные. При неверном ключе будет исключение (ValueError)."""
+        nonce = token[:NONCE_LENGTH]
+        tag = token[NONCE_LENGTH:NONCE_LENGTH + TAG_LENGTH]
+        ciphertext = token[NONCE_LENGTH + TAG_LENGTH:]
+        cipher = AES.new(self._key, AES.MODE_GCM, nonce=nonce)
+        return cipher.decrypt_and_verify(ciphertext, tag)
