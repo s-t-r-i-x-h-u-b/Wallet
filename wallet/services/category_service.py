@@ -30,6 +30,19 @@ class CategoryService:
     def list(self) -> list[Category]:
         return self.categories.list()
 
+    def delete(self, category_id: int) -> None:
+        """Удалить категорию, обнулив ссылки на неё у операций и платежей."""
+        conn = self.categories.conn
+        conn.execute(
+            "UPDATE transactions SET category_id = NULL WHERE category_id = ?",
+            (category_id,),
+        )
+        conn.execute(
+            "UPDATE reminders SET category_id = NULL WHERE category_id = ?",
+            (category_id,),
+        )
+        self.categories.delete(category_id)
+
     def ensure_defaults(self) -> list[Category]:
         """Создать предопределённые категории, если их ещё нет."""
         existing = {c.name for c in self.categories.list()}
