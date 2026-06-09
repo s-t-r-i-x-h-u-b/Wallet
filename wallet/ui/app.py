@@ -186,14 +186,15 @@ ScreenManager:
                         text: 'Добавить операцию'
                         pos_hint: {'center_x': 0.5}
                         on_release: app.add_transaction()
+                    MDLabel:
+                        text: 'История операций'
+                        theme_text_color: 'Secondary'
+                        size_hint_y: None
+                        height: dp(26)
                     MDBoxLayout:
                         size_hint_y: None
                         height: dp(48)
                         spacing: dp(8)
-                        MDLabel:
-                            text: 'История:'
-                            size_hint_x: None
-                            width: dp(70)
                         Spinner:
                             id: flt_type
                             text: 'Все'
@@ -203,6 +204,17 @@ ScreenManager:
                             id: flt_category
                             text: 'Все'
                             on_text: app.apply_filter()
+                        Spinner:
+                            id: flt_period
+                            text: 'Всё время'
+                            values: ['Всё время', 'Текущий месяц', 'Последние 3 месяца', 'Последние 6 месяцев']
+                            on_text: app.apply_filter()
+                    MDLabel:
+                        text: 'Нажмите на операцию, чтобы изменить или удалить'
+                        theme_text_color: 'Secondary'
+                        font_style: 'Caption'
+                        size_hint_y: None
+                        height: dp(26)
                     ScrollView:
                         MDList:
                             id: tx_list
@@ -596,6 +608,67 @@ ScreenManager:
                 return
             self._refresh_transactions()
 
+        def open_tx_dialog(self, tx_id):
+            tx = self.context.transactions.get(tx_id)
+            if tx is None:
+                return
+            names = [c.name for c in self._categories()]
+            content = _EditContent(
+                MDTextField(text=str(tx.amount), hint_text="Сумма",
+                            input_filter="float"),
+                Spinner(text="Расход" if tx.type == TransactionType.EXPENSE else "Доход",
+                        values=["Расход", "Доход"], size_hint_y=None, height=dp(44)),
+                Spinner(text=self._cat_name(tx.category_id) or NO_CATEGORY,
+                        values=[NO_CATEGORY] + names, size_hint_y=None, height=dp(44)),
+                MDTextField(text=tx.note, hint_text="Комментарий"),
+            )
+            self._dialog = MDDialog(
+                title="Операция",
+                type="custom",
+                content_cls=content,
+                buttons=[
+                    MDFlatButton(text="Удалить", theme_text_color="Custom",
+                                 text_color=(0.8, 0.1, 0.1, 1),
+                                 on_release=lambda *_: self._delete_tx(tx_id)),
+                    MDFlatButton(text="Отмена",
+                                 on_release=lambda *_: self._dialog.dismiss()),
+                    MDRaisedButton(text="Сохранить",
+                                   on_release=lambda *_: self._save_tx(tx_id, content)),
+                ],
+            )
+            self._dialog.open()
+
+        def _save_tx(self, tx_id, content):
+            try:
+                amount = Decimal(content.fields[0].text)
+            except (InvalidOperation, ValueError):
+                self._toast("Некорректная сумма")
+                return
+            is_expense = content.fields[1].text == "Расход"
+            tx_type = TransactionType.EXPENSE if is_expense else TransactionType.INCOME
+            kind = CategoryKind.EXPENSE if is_expense else CategoryKind.INCOME
+            category_id = self._resolve_category(content.fields[2].text, kind)
+            note = content.fields[3].text
+            try:
+                tx = self.context.transaction_service.edit(
+                    tx_id, amount=amount, note=note, tx_type=tx_type)
+            except ValueError as exc:
+                self._toast(str(exc))
+                return
+            tx.category_id = category_id  # категория может быть снята (None)
+            self.context.transactions.update(tx)
+            self.context.save()
+            self._dialog.dismiss()
+            self.refresh_all()
+            self._toast("Операция изменена")
+
+        def _delete_tx(self, tx_id):
+            self.context.transaction_service.delete(tx_id)
+            self.context.save()
+            self._dialog.dismiss()
+            self.refresh_all()
+            self._toast("Операция удалена")
+
         # --- цели ---
 
         def add_goal(self):
@@ -796,9 +869,8 @@ ScreenManager:
 
         # --- аналитика ---
 
-        def _period_bounds(self):
-            """Вернуть (date_from, date_to, months) по выбранному периоду."""
-            sel = self._main_ids().an_period.text
+        def _period_start(self, label):
+            """Начало периода (datetime) по метке; None — «Всё время»."""
             today = date.today()
 
             def first_of_month_back(n: int) -> datetime:
@@ -807,15 +879,23 @@ ScreenManager:
                 month = index % 12 + 1
                 return datetime(year, month, 1)
 
-            if sel == "Текущий месяц":
-                return datetime(today.year, today.month, 1), None, 1
-            if sel == "Последние 3 месяца":
-                return first_of_month_back(2), None, 3
-            if sel == "Последние 6 месяцев":
-                return first_of_month_back(5), None, 6
-            if sel == "Последний год":
-                return first_of_month_back(11), None, 12
-            return None, None, 60
+            return {
+                "Текущий месяц": datetime(today.year, today.month, 1),
+                "Последние 3 месяца": first_of_month_back(2),
+                "Последние 6 месяцев": first_of_month_back(5),
+                "Последний год": first_of_month_back(11),
+            }.get(label)
+
+        def _period_bounds(self):
+            """Вернуть (date_from, date_to, months) по периоду аналитики."""
+            sel = self._main_ids().an_period.text
+            months = {
+                "Текущий месяц": 1,
+                "Последние 3 месяца": 3,
+                "Последние 6 месяцев": 6,
+                "Последний год": 12,
+            }.get(sel, 60)
+            return self._period_start(sel), None, months
 
         def build_pie(self):
             DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -862,11 +942,13 @@ ScreenManager:
         def _tx_item(self, tx):
             sign = "−" if tx.type == TransactionType.EXPENSE else "+"
             category = self._cat_name(tx.category_id) or "без категории"
-            return ThreeLineListItem(
+            item = ThreeLineListItem(
                 text=f"{sign}{tx.amount} ₽",
                 secondary_text=f"{tx.created_at.strftime('%d.%m.%Y')} · {category}",
                 tertiary_text=tx.note or "—",
             )
+            item.bind(on_release=lambda inst, tid=tx.id: self.open_tx_dialog(tid))
+            return item
 
         def _refresh_dashboard(self):
             ids = self._main_ids()
@@ -887,9 +969,10 @@ ScreenManager:
             if ids.flt_category.text not in ("Все", ""):
                 cat = self._category_by_name(ids.flt_category.text)
                 category_id = cat.id if cat else -1
+            date_from = self._period_start(ids.flt_period.text)
             ids.tx_list.clear_widgets()
             for tx in self.context.transaction_service.list(
-                category_id=category_id, tx_type=tx_type
+                category_id=category_id, tx_type=tx_type, date_from=date_from
             ):
                 ids.tx_list.add_widget(self._tx_item(tx))
 
