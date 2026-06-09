@@ -35,4 +35,6 @@ android.allow_backup = 1
 [buildozer]
 
 log_level = 2
-warn_on_root = 1
+# В контейнере Buildozer работает от root; отключаем интерактивный вопрос,
+# иначе неинтерактивный запуск падает с EOFError.
+warn_on_root = 0
