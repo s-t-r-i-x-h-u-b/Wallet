@@ -32,6 +32,7 @@ try:  # pragma: no cover - наличие GUI зависит от среды
     from kivy.lang import Builder
     from kivy.metrics import dp
     from kivy.uix.image import Image  # noqa: F401  (используется в KV)
+    from kivy.uix.spinner import Spinner
     from kivymd.app import MDApp
     from kivymd.uix.boxlayout import MDBoxLayout
     from kivymd.uix.button import MDFlatButton, MDRaisedButton
@@ -101,6 +102,7 @@ ScreenManager:
         orientation: 'vertical'
         MDTopAppBar:
             title: 'Wallet'
+            left_action_items: [['cog', lambda x: app.open_settings()]]
             right_action_items: [['logout', lambda x: app.logout()]]
         MDBottomNavigation:
             id: nav
@@ -161,8 +163,14 @@ ScreenManager:
                         MDRaisedButton:
                             text: '+ категория'
                             size_hint_x: None
-                            width: dp(140)
+                            width: dp(130)
                             on_release: app.add_category()
+                        MDRaisedButton:
+                            text: '− категория'
+                            size_hint_x: None
+                            width: dp(130)
+                            md_bg_color: 0.8, 0.2, 0.2, 1
+                            on_release: app.delete_category()
                     MDBoxLayout:
                         size_hint_y: None
                         height: dp(48)
@@ -304,7 +312,7 @@ ScreenManager:
                         Spinner:
                             id: an_period
                             text: 'Всё время'
-                            values: ['Всё время', 'Текущий месяц', 'Последние 3 месяца', 'Последние 6 месяцев']
+                            values: ['Всё время', 'Текущий месяц', 'Последние 3 месяца', 'Последние 6 месяцев', 'Последний год']
                     MDBoxLayout:
                         size_hint_y: None
                         height: dp(48)
@@ -326,15 +334,15 @@ ScreenManager:
         pass
 
     class _EditContent(MDBoxLayout):
-        """Содержимое диалога редактирования с двумя полями ввода."""
+        """Содержимое диалога редактирования с произвольным числом полей."""
 
-        def __init__(self, field1, field2, **kwargs):
+        def __init__(self, *widgets, **kwargs):
             super().__init__(orientation="vertical", spacing=dp(8),
-                             padding=dp(8), size_hint_y=None, height=dp(160), **kwargs)
-            self.field1 = field1
-            self.field2 = field2
-            self.add_widget(field1)
-            self.add_widget(field2)
+                             padding=dp(8), size_hint_y=None, **kwargs)
+            self.fields = list(widgets)
+            self.height = dp(64) * len(widgets) + dp(16)
+            for widget in widgets:
+                self.add_widget(widget)
 
     class WalletApp(MDApp):
         """Корневое приложение KivyMD."""
@@ -487,6 +495,55 @@ ScreenManager:
             ids.tx_category.text = name
             self._toast("Категория добавлена")
 
+        def delete_category(self):
+            ids = self._main_ids()
+            name = ids.tx_category.text
+            category = self._category_by_name(name)
+            if category is None:
+                self._toast("Выберите категорию в списке для удаления")
+                return
+            self.context.category_service.delete(category.id)
+            self.context.save()
+            ids.tx_category.text = NO_CATEGORY
+            self._populate_spinners()
+            self.refresh_all()
+            self._toast("Категория удалена")
+
+        # --- настройки ---
+
+        def open_settings(self):
+            if not self.context:
+                return
+            content = _EditContent(
+                MDTextField(hint_text="Новый пароль", password=True),
+                MDTextField(hint_text="Повторите пароль", password=True),
+            )
+            self._dialog = MDDialog(
+                title="Настройки — смена пароля",
+                type="custom",
+                content_cls=content,
+                buttons=[
+                    MDFlatButton(text="Отмена",
+                                 on_release=lambda *_: self._dialog.dismiss()),
+                    MDRaisedButton(text="Сохранить",
+                                   on_release=lambda *_: self._save_settings(content)),
+                ],
+            )
+            self._dialog.open()
+
+        def _save_settings(self, content):
+            new_pwd = content.fields[0].text
+            confirm = content.fields[1].text
+            if not new_pwd:
+                self._toast("Пароль не может быть пустым")
+                return
+            if new_pwd != confirm:
+                self._toast("Пароли не совпадают")
+                return
+            self.context.change_password(new_pwd)
+            self._dialog.dismiss()
+            self._toast("Пароль изменён")
+
         # --- операции ---
 
         def add_transaction(self):
@@ -594,13 +651,13 @@ ScreenManager:
 
         def _save_goal(self, goal_id, content):
             try:
-                target = Decimal(content.field2.text)
+                target = Decimal(content.fields[1].text)
             except (InvalidOperation, ValueError):
                 self._toast("Некорректная целевая сумма")
                 return
             try:
                 self.context.goal_service.update(
-                    goal_id, title=content.field1.text, target_amount=target)
+                    goal_id, title=content.fields[0].text, target_amount=target)
             except ValueError as exc:
                 self._toast(str(exc))
                 return
@@ -665,10 +722,16 @@ ScreenManager:
             reminder = self.context.reminders.get(reminder_id)
             if reminder is None:
                 return
+            period_spinner = Spinner(
+                text=PERIOD_LABELS.get(reminder.period, "Разовый"),
+                values=["Разовый"] + list(PERIOD_MAP.keys()),
+                size_hint_y=None, height=dp(44),
+            )
             content = _EditContent(
                 MDTextField(text=reminder.title, hint_text="Название платежа"),
                 MDTextField(text=str(reminder.amount), hint_text="Сумма",
                             input_filter="float"),
+                period_spinner,
             )
             pay_label = "Перенести" if repeating else "Оплатить"
             self._dialog = MDDialog(
@@ -695,13 +758,15 @@ ScreenManager:
 
         def _save_reminder(self, reminder_id, content):
             try:
-                amount = Decimal(content.field2.text)
+                amount = Decimal(content.fields[1].text)
             except (InvalidOperation, ValueError):
                 self._toast("Некорректная сумма")
                 return
+            period = PERIOD_MAP.get(content.fields[2].text, "")
             try:
                 self.context.reminder_service.update(
-                    reminder_id, title=content.field1.text, amount=amount)
+                    reminder_id, title=content.fields[0].text, amount=amount,
+                    period=period)
             except ValueError as exc:
                 self._toast(str(exc))
                 return
@@ -736,6 +801,8 @@ ScreenManager:
                 return first_of_month_back(2), None, 3
             if sel == "Последние 6 месяцев":
                 return first_of_month_back(5), None, 6
+            if sel == "Последний год":
+                return first_of_month_back(11), None, 12
             return None, None, 60
 
         def build_pie(self):
@@ -819,7 +886,7 @@ ScreenManager:
             ids.goals_list.clear_widgets()
             for goal in self.context.goal_service.list():
                 percent = int(goal.progress * 100)
-                status = " ✓ выполнена" if goal.is_reached else ""
+                status = " (выполнена)" if goal.is_reached else ""
                 item = TwoLineListItem(
                     text=f"{goal.title}{status}",
                     secondary_text=f"{goal.current_amount}/{goal.target_amount} ₽"
