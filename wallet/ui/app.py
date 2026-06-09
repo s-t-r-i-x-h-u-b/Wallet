@@ -373,6 +373,7 @@ ScreenManager:
             self.tx_date = date.today()
             self.rem_date = date.today()
             self._dialog = None
+            self._confirm = None         # диалог подтверждения удаления
             self._edit_due = None       # дата срока при редактировании платежа
             self._edit_due_btn = None
             self.flt_from = None         # фильтр истории: начало периода
@@ -401,6 +402,24 @@ ScreenManager:
                 Snackbar(text=text).open()
             except Exception:  # noqa: BLE001
                 print(text)
+
+        def _confirm_delete(self, message: str, on_confirm) -> None:
+            """Показать диалог подтверждения удаления."""
+            self._confirm = MDDialog(
+                title="Подтверждение",
+                text=message,
+                buttons=[
+                    MDFlatButton(text="Отмена",
+                                 on_release=lambda *_: self._confirm.dismiss()),
+                    MDRaisedButton(text="Удалить", md_bg_color=(0.8, 0.2, 0.2, 1),
+                                   on_release=lambda *_: self._run_confirmed(on_confirm)),
+                ],
+            )
+            self._confirm.open()
+
+        def _run_confirmed(self, on_confirm) -> None:
+            self._confirm.dismiss()
+            on_confirm()
 
         def _categories(self):
             return self.context.category_service.list()
@@ -563,20 +582,26 @@ ScreenManager:
                     MDFlatButton(text="Отмена",
                                  on_release=lambda *_: self._dialog.dismiss()),
                     MDRaisedButton(text="Удалить", md_bg_color=(0.8, 0.2, 0.2, 1),
-                                   on_release=lambda *_: self._remove_category(content)),
+                                   on_release=lambda *_: self._ask_remove_category(content)),
                 ],
             )
             self._dialog.open()
 
-        def _remove_category(self, content):
+        def _ask_remove_category(self, content):
             name = content.fields[0].text
             category = self._category_by_name(name)
             if category is None:
                 self._toast("Категория не найдена")
                 return
-            self.context.category_service.delete(category.id)
-            self.context.save()
             self._dialog.dismiss()
+            self._confirm_delete(
+                f"Удалить категорию «{name}»?",
+                lambda: self._remove_category_confirmed(category.id, name),
+            )
+
+        def _remove_category_confirmed(self, category_id, name):
+            self.context.category_service.delete(category_id)
+            self.context.save()
             if self._main_ids().tx_category.text == name:
                 self._main_ids().tx_category.text = NO_CATEGORY
             self._populate_spinners()
@@ -744,7 +769,7 @@ ScreenManager:
                 buttons=[
                     MDFlatButton(text="Удалить", theme_text_color="Custom",
                                  text_color=(0.8, 0.1, 0.1, 1),
-                                 on_release=lambda *_: self._delete_tx(tx_id)),
+                                 on_release=lambda *_: self._ask_delete_tx(tx_id)),
                     MDFlatButton(text="Отмена",
                                  on_release=lambda *_: self._dialog.dismiss()),
                     MDRaisedButton(text="Сохранить",
@@ -777,10 +802,14 @@ ScreenManager:
             self.refresh_all()
             self._toast("Операция изменена")
 
+        def _ask_delete_tx(self, tx_id):
+            self._dialog.dismiss()
+            self._confirm_delete("Удалить операцию?",
+                                 lambda: self._delete_tx(tx_id))
+
         def _delete_tx(self, tx_id):
             self.context.transaction_service.delete(tx_id)
             self.context.save()
-            self._dialog.dismiss()
             self.refresh_all()
             self._toast("Операция удалена")
 
@@ -840,7 +869,7 @@ ScreenManager:
                 buttons=[
                     MDFlatButton(text="Удалить", theme_text_color="Custom",
                                  text_color=(0.8, 0.1, 0.1, 1),
-                                 on_release=lambda *_: self._delete_goal(goal_id)),
+                                 on_release=lambda *_: self._ask_delete_goal(goal_id)),
                     MDFlatButton(text="Отмена",
                                  on_release=lambda *_: self._dialog.dismiss()),
                     MDRaisedButton(text="Сохранить",
@@ -866,10 +895,14 @@ ScreenManager:
             self.refresh_all()
             self._toast("Цель обновлена")
 
+        def _ask_delete_goal(self, goal_id):
+            self._dialog.dismiss()
+            self._confirm_delete("Удалить цель?",
+                                 lambda: self._delete_goal(goal_id))
+
         def _delete_goal(self, goal_id):
             self.context.goal_service.delete(goal_id)
             self.context.save()
-            self._dialog.dismiss()
             self.refresh_all()
             self._toast("Цель удалена")
 
@@ -950,7 +983,7 @@ ScreenManager:
                                      reminder_id, repeating)),
                     MDFlatButton(text="Удалить", theme_text_color="Custom",
                                  text_color=(0.8, 0.1, 0.1, 1),
-                                 on_release=lambda *_: self._delete_reminder(reminder_id)),
+                                 on_release=lambda *_: self._ask_delete_reminder(reminder_id)),
                     MDRaisedButton(text="Сохранить",
                                    on_release=lambda *_: self._save_reminder(
                                        reminder_id, content)),
@@ -981,10 +1014,14 @@ ScreenManager:
             self.refresh_all()
             self._toast("Платёж обновлён")
 
+        def _ask_delete_reminder(self, reminder_id):
+            self._dialog.dismiss()
+            self._confirm_delete("Удалить платёж?",
+                                 lambda: self._delete_reminder(reminder_id))
+
         def _delete_reminder(self, reminder_id):
             self.context.reminder_service.delete(reminder_id)
             self.context.save()
-            self._dialog.dismiss()
             self.refresh_all()
             self._toast("Платёж удалён")
 
