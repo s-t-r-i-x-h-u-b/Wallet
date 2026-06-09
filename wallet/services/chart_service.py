@@ -67,9 +67,14 @@ class ChartService:
         plt.close(fig)
         return Path(path)
 
-    def dynamics_chart(self, path: str | Path, months: int = 6) -> Path:
-        """Диаграмма динамики доходов и расходов по месяцам."""
-        data = self.analytics.monthly_dynamics(months)
+    def dynamics_chart(
+        self,
+        path: str | Path,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
+    ) -> Path:
+        """Диаграмма динамики доходов и расходов по месяцам за период."""
+        data = self.analytics.monthly_dynamics(date_from, date_to)
         labels = [d[0] for d in data]
         incomes = [float(d[1]) for d in data]
         expenses = [float(d[2]) for d in data]
