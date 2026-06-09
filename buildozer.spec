@@ -32,6 +32,9 @@ android.archs = arm64-v8a, armeabi-v7a
 
 android.allow_backup = 1
 
+# Автопринятие лицензий Android SDK (нужно для неинтерактивной сборки в Docker)
+android.accept_sdk_license = True
+
 [buildozer]
 
 log_level = 2
