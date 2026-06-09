@@ -55,6 +55,19 @@ def init_vault(data_dir: str | Path, password: str) -> Database:
     return db
 
 
+def change_password(db: Database, new_password: str) -> None:
+    """Сменить пароль открытого хранилища: новая соль, ключ и перешифрование."""
+    if db.path is None:
+        raise ValueError("Хранилище не связано с файлом")
+    if not new_password:
+        raise ValueError("Пароль не может быть пустым")
+    data_dir = db.path.parent
+    salt = generate_salt()
+    _salt_path(data_dir).write_bytes(salt)
+    db.encryption = EncryptionManager(derive_key(new_password, salt))
+    db.save()
+
+
 def open_vault(data_dir: str | Path, password: str) -> Database:
     """Открыть существующее хранилище. При неверном пароле — ошибка."""
     data_dir = Path(data_dir)
