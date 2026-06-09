@@ -17,7 +17,7 @@ version = 0.1.0
 # ВНИМАНИЕ: matplotlib намеренно не включён в первую сборку — он тяжёлый и
 # капризный для python-for-android. Приложение работает без него (диаграммы
 # в этом случае недоступны). Добавим позже, когда базовая сборка заработает.
-requirements = python3,kivy==2.3.1,kivymd==1.2.0,pillow,plyer,cryptography
+requirements = python3,kivy==2.3.1,kivymd==1.2.0,pillow,plyer,pycryptodome
 
 orientation = portrait
 fullscreen = 0
