@@ -443,6 +443,18 @@ ScreenManager:
             ids.tx_date_btn.text = f"Дата: {self.tx_date.strftime('%d.%m.%Y')}"
             ids.rem_date_btn.text = f"Срок: {self.rem_date.strftime('%d.%m.%Y')}"
             self.refresh_all()
+            self._notify_due_payments()
+
+        def _notify_due_payments(self):
+            """Разослать уведомления о наступивших платежах при входе.
+
+            Ошибки backend уведомлений (например, в среде без графической
+            оболочки) не должны мешать работе приложения.
+            """
+            try:
+                self.context.reminder_service.notify_due(self.context.notifier)
+            except Exception:  # noqa: BLE001
+                pass
 
         # --- выбор даты ---
 
