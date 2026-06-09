@@ -72,6 +72,12 @@ class AppContext:
 
         return cls(vault.open_vault(data_dir, password))
 
+    def change_password(self, new_password: str) -> None:
+        """Сменить пароль (пин-код) хранилища."""
+        from wallet.core import vault
+
+        vault.change_password(self.db, new_password)
+
     def save(self) -> None:
         self.db.save()
 

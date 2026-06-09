@@ -39,3 +39,18 @@ def test_wrong_password_raises(tmp_path):
 def test_open_missing_vault_raises(tmp_path):
     with pytest.raises(FileNotFoundError):
         vault.open_vault(tmp_path / "nope", "pass")
+
+
+def test_change_password(tmp_path):
+    ctx = AppContext.init_vault(tmp_path, "old")
+    ctx.account_service.create("Карта", initial_balance=Decimal("100"))
+    ctx.change_password("new")
+    ctx.close()
+
+    # старый пароль больше не подходит
+    with pytest.raises(vault.InvalidPasswordError):
+        vault.open_vault(tmp_path, "old")
+
+    # новый пароль открывает данные
+    reopened = AppContext.open_vault(tmp_path, "new")
+    assert reopened.account_service.list()[0].balance == Decimal("100")
