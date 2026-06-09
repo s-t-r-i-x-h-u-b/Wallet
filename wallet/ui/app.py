@@ -157,20 +157,14 @@ ScreenManager:
                         size_hint_y: None
                         height: dp(48)
                         spacing: dp(8)
-                        MDTextField:
-                            id: new_cat
-                            hint_text: 'Новая категория'
-                        MDRaisedButton:
-                            text: '+ категория'
-                            size_hint_x: None
-                            width: dp(130)
-                            on_release: app.add_category()
-                        MDRaisedButton:
-                            text: '− категория'
-                            size_hint_x: None
-                            width: dp(130)
-                            md_bg_color: 0.8, 0.2, 0.2, 1
-                            on_release: app.delete_category()
+                        MDFlatButton:
+                            text: 'Добавить категорию'
+                            on_release: app.open_add_category()
+                        MDFlatButton:
+                            text: 'Удалить категорию'
+                            theme_text_color: 'Custom'
+                            text_color: 0.8, 0.2, 0.2, 1
+                            on_release: app.open_delete_category()
                     MDBoxLayout:
                         size_hint_y: None
                         height: dp(48)
@@ -204,11 +198,21 @@ ScreenManager:
                             id: flt_category
                             text: 'Все'
                             on_text: app.apply_filter()
-                        Spinner:
-                            id: flt_period
-                            text: 'Всё время'
-                            values: ['Всё время', 'Текущий месяц', 'Последние 3 месяца', 'Последние 6 месяцев']
-                            on_text: app.apply_filter()
+                    MDBoxLayout:
+                        size_hint_y: None
+                        height: dp(48)
+                        spacing: dp(8)
+                        MDFlatButton:
+                            id: flt_from_btn
+                            text: 'С: —'
+                            on_release: app.open_flt_from()
+                        MDFlatButton:
+                            id: flt_to_btn
+                            text: 'По: —'
+                            on_release: app.open_flt_to()
+                        MDFlatButton:
+                            text: 'Сброс'
+                            on_release: app.reset_flt()
                     MDLabel:
                         text: 'Нажмите на операцию, чтобы изменить или удалить'
                         theme_text_color: 'Secondary'
@@ -317,14 +321,17 @@ ScreenManager:
                         size_hint_y: None
                         height: dp(48)
                         spacing: dp(8)
-                        MDLabel:
-                            text: 'Период:'
-                            size_hint_x: None
-                            width: dp(80)
-                        Spinner:
-                            id: an_period
-                            text: 'Всё время'
-                            values: ['Всё время', 'Текущий месяц', 'Последние 3 месяца', 'Последние 6 месяцев', 'Последний год']
+                        MDFlatButton:
+                            id: an_from_btn
+                            text: 'С: —'
+                            on_release: app.open_an_from()
+                        MDFlatButton:
+                            id: an_to_btn
+                            text: 'По: —'
+                            on_release: app.open_an_to()
+                        MDFlatButton:
+                            text: 'Сброс'
+                            on_release: app.reset_an()
                     MDBoxLayout:
                         size_hint_y: None
                         height: dp(48)
@@ -366,6 +373,12 @@ ScreenManager:
             self.tx_date = date.today()
             self.rem_date = date.today()
             self._dialog = None
+            self._edit_due = None       # дата срока при редактировании платежа
+            self._edit_due_btn = None
+            self.flt_from = None         # фильтр истории: начало периода
+            self.flt_to = None           # фильтр истории: конец периода
+            self.an_from = None          # аналитика: начало периода
+            self.an_to = None            # аналитика: конец периода
 
         def build(self):
             self.title = "Wallet"
@@ -503,35 +516,137 @@ ScreenManager:
                 return existing.id
             return self.context.category_service.add(name, kind).id
 
-        def add_category(self):
-            ids = self._main_ids()
-            name = ids.new_cat.text.strip()
+        def open_add_category(self):
+            content = _EditContent(MDTextField(hint_text="Название категории"))
+            self._dialog = MDDialog(
+                title="Новая категория",
+                type="custom",
+                content_cls=content,
+                buttons=[
+                    MDFlatButton(text="Отмена",
+                                 on_release=lambda *_: self._dialog.dismiss()),
+                    MDRaisedButton(text="Создать",
+                                   on_release=lambda *_: self._create_category(content)),
+                ],
+            )
+            self._dialog.open()
+
+        def _create_category(self, content):
+            name = content.fields[0].text.strip()
             if not name:
                 self._toast("Введите название категории")
                 return
+            ids = self._main_ids()
             kind = (CategoryKind.EXPENSE if ids.tx_type.text == "Расход"
                     else CategoryKind.INCOME)
             if self._category_by_name(name) is None:
                 self.context.category_service.add(name, kind)
                 self.context.save()
-            ids.new_cat.text = ""
+            self._dialog.dismiss()
             self._populate_spinners()
             ids.tx_category.text = name
             self._toast("Категория добавлена")
 
-        def delete_category(self):
-            ids = self._main_ids()
-            name = ids.tx_category.text
+        def open_delete_category(self):
+            names = [c.name for c in self._categories()]
+            if not names:
+                self._toast("Нет категорий для удаления")
+                return
+            content = _EditContent(
+                Spinner(text=names[0], values=names, size_hint_y=None, height=dp(44)),
+            )
+            self._dialog = MDDialog(
+                title="Удалить категорию",
+                type="custom",
+                content_cls=content,
+                buttons=[
+                    MDFlatButton(text="Отмена",
+                                 on_release=lambda *_: self._dialog.dismiss()),
+                    MDRaisedButton(text="Удалить", md_bg_color=(0.8, 0.2, 0.2, 1),
+                                   on_release=lambda *_: self._remove_category(content)),
+                ],
+            )
+            self._dialog.open()
+
+        def _remove_category(self, content):
+            name = content.fields[0].text
             category = self._category_by_name(name)
             if category is None:
-                self._toast("Выберите категорию в списке для удаления")
+                self._toast("Категория не найдена")
                 return
             self.context.category_service.delete(category.id)
             self.context.save()
-            ids.tx_category.text = NO_CATEGORY
+            self._dialog.dismiss()
+            if self._main_ids().tx_category.text == name:
+                self._main_ids().tx_category.text = NO_CATEGORY
             self._populate_spinners()
             self.refresh_all()
             self._toast("Категория удалена")
+
+        # --- выбор диапазона дат ---
+
+        def _pick(self, callback):
+            from kivymd.uix.pickers import MDDatePicker
+
+            picker = MDDatePicker()
+            picker.bind(on_save=lambda inst, value, rng: callback(value))
+            picker.open()
+
+        @staticmethod
+        def _day_start(d):
+            return datetime.combine(d, datetime.min.time()) if d else None
+
+        @staticmethod
+        def _day_end(d):
+            return datetime.combine(d, datetime.max.time()) if d else None
+
+        def open_flt_from(self):
+            self._pick(self._set_flt_from)
+
+        def open_flt_to(self):
+            self._pick(self._set_flt_to)
+
+        def _set_flt_from(self, value):
+            self.flt_from = value
+            self._main_ids().flt_from_btn.text = f"С: {value.strftime('%d.%m.%Y')}"
+            self._refresh_transactions()
+
+        def _set_flt_to(self, value):
+            self.flt_to = value
+            self._main_ids().flt_to_btn.text = f"По: {value.strftime('%d.%m.%Y')}"
+            self._refresh_transactions()
+
+        def reset_flt(self):
+            self.flt_from = self.flt_to = None
+            ids = self._main_ids()
+            ids.flt_from_btn.text = "С: —"
+            ids.flt_to_btn.text = "По: —"
+            self._refresh_transactions()
+
+        def open_an_from(self):
+            self._pick(self._set_an_from)
+
+        def open_an_to(self):
+            self._pick(self._set_an_to)
+
+        def _set_an_from(self, value):
+            self.an_from = value
+            self._main_ids().an_from_btn.text = f"С: {value.strftime('%d.%m.%Y')}"
+
+        def _set_an_to(self, value):
+            self.an_to = value
+            self._main_ids().an_to_btn.text = f"По: {value.strftime('%d.%m.%Y')}"
+
+        def reset_an(self):
+            self.an_from = self.an_to = None
+            ids = self._main_ids()
+            ids.an_from_btn.text = "С: —"
+            ids.an_to_btn.text = "По: —"
+
+        def _set_edit_due(self, value):
+            self._edit_due = value
+            if self._edit_due_btn is not None:
+                self._edit_due_btn.text = f"Срок: {value.strftime('%d.%m.%Y')}"
 
         # --- настройки ---
 
@@ -812,11 +927,17 @@ ScreenManager:
                 values=["Разовый"] + list(PERIOD_MAP.keys()),
                 size_hint_y=None, height=dp(44),
             )
+            self._edit_due = reminder.due_date
+            self._edit_due_btn = MDFlatButton(
+                text=f"Срок: {reminder.due_date.strftime('%d.%m.%Y')}")
+            self._edit_due_btn.bind(
+                on_release=lambda *_: self._pick(self._set_edit_due))
             content = _EditContent(
                 MDTextField(text=reminder.title, hint_text="Название платежа"),
                 MDTextField(text=str(reminder.amount), hint_text="Сумма",
                             input_filter="float"),
                 period_spinner,
+                self._edit_due_btn,
             )
             pay_label = "Перенести" if repeating else "Оплатить"
             self._dialog = MDDialog(
@@ -851,7 +972,7 @@ ScreenManager:
             try:
                 self.context.reminder_service.update(
                     reminder_id, title=content.fields[0].text, amount=amount,
-                    period=period)
+                    period=period, due_date=self._edit_due)
             except ValueError as exc:
                 self._toast(str(exc))
                 return
@@ -869,46 +990,18 @@ ScreenManager:
 
         # --- аналитика ---
 
-        def _period_start(self, label):
-            """Начало периода (datetime) по метке; None — «Всё время»."""
-            today = date.today()
-
-            def first_of_month_back(n: int) -> datetime:
-                index = today.month - 1 - n
-                year = today.year + index // 12
-                month = index % 12 + 1
-                return datetime(year, month, 1)
-
-            return {
-                "Текущий месяц": datetime(today.year, today.month, 1),
-                "Последние 3 месяца": first_of_month_back(2),
-                "Последние 6 месяцев": first_of_month_back(5),
-                "Последний год": first_of_month_back(11),
-            }.get(label)
-
-        def _period_bounds(self):
-            """Вернуть (date_from, date_to, months) по периоду аналитики."""
-            sel = self._main_ids().an_period.text
-            months = {
-                "Текущий месяц": 1,
-                "Последние 3 месяца": 3,
-                "Последние 6 месяцев": 6,
-                "Последний год": 12,
-            }.get(sel, 60)
-            return self._period_start(sel), None, months
-
         def build_pie(self):
             DATA_DIR.mkdir(parents=True, exist_ok=True)
-            date_from, date_to, _ = self._period_bounds()
             path = DATA_DIR / "chart_pie.png"
-            self.context.chart_service.expenses_pie(path, date_from, date_to)
+            self.context.chart_service.expenses_pie(
+                path, self._day_start(self.an_from), self._day_end(self.an_to))
             self._set_chart(path)
 
         def build_dynamics(self):
             DATA_DIR.mkdir(parents=True, exist_ok=True)
-            _, _, months = self._period_bounds()
             path = DATA_DIR / "chart_dyn.png"
-            self.context.chart_service.dynamics_chart(path, months)
+            self.context.chart_service.dynamics_chart(
+                path, self._day_start(self.an_from), self._day_end(self.an_to))
             self._set_chart(path)
 
         def _set_chart(self, path):
@@ -969,10 +1062,11 @@ ScreenManager:
             if ids.flt_category.text not in ("Все", ""):
                 cat = self._category_by_name(ids.flt_category.text)
                 category_id = cat.id if cat else -1
-            date_from = self._period_start(ids.flt_period.text)
             ids.tx_list.clear_widgets()
             for tx in self.context.transaction_service.list(
-                category_id=category_id, tx_type=tx_type, date_from=date_from
+                category_id=category_id, tx_type=tx_type,
+                date_from=self._day_start(self.flt_from),
+                date_to=self._day_end(self.flt_to),
             ):
                 ids.tx_list.add_widget(self._tx_item(tx))
 
