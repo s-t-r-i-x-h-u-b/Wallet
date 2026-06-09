@@ -16,6 +16,25 @@ def test_edit_amount_recalculates_balance(context, account):
     assert context.accounts.get(account.id).balance == Decimal("600")
 
 
+def test_edit_can_change_category(context, account):
+    from wallet.models import Category, CategoryKind
+
+    food = context.categories.add(Category(name="Еда", kind=CategoryKind.EXPENSE))
+    taxi = context.categories.add(Category(name="Такси", kind=CategoryKind.EXPENSE))
+    tx = context.transaction_service.add(
+        Transaction(amount=Decimal("100"), type=TransactionType.EXPENSE,
+                    account_id=account.id, category_id=food.id)
+    )
+    # имитация сохранения из UI-диалога: правка суммы + смена категории
+    edited = context.transaction_service.edit(tx.id, amount=Decimal("150"))
+    edited.category_id = taxi.id
+    context.transactions.update(edited)
+
+    result = context.transactions.get(tx.id)
+    assert result.category_id == taxi.id
+    assert result.amount == Decimal("150")
+
+
 def test_edit_type_recalculates_balance(context, account):
     tx = context.transaction_service.add(
         Transaction(amount=Decimal("200"), type=TransactionType.INCOME,
