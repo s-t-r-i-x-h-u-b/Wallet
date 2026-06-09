@@ -34,6 +34,19 @@ def test_update_reminder(context):
     assert updated.amount == Decimal("250")
 
 
+def test_update_reminder_period(context):
+    r = context.reminder_service.schedule(
+        Reminder(title="Подписка", amount=Decimal("500"), due_date=date.today())
+    )
+    assert r.is_repeating is False
+    updated = context.reminder_service.update(r.id, period="monthly")
+    assert updated.period == "monthly"
+    assert updated.is_repeating is True
+    # снятие повторяемости
+    again = context.reminder_service.update(r.id, period="")
+    assert again.is_repeating is False
+
+
 def test_delete_reminder(context):
     r = context.reminder_service.schedule(
         Reminder(title="Удалить", amount=Decimal("100"), due_date=date.today())

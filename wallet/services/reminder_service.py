@@ -71,8 +71,13 @@ class ReminderService:
         title: str | None = None,
         amount: Decimal | None = None,
         due_date: date | None = None,
+        period: str | None = None,
     ) -> Reminder:
-        """Изменить название, сумму и/или срок платежа."""
+        """Изменить название, сумму, срок и/или периодичность платежа.
+
+        Если передан `period` (пустая строка — разовый платёж), признак
+        повторяемости пересчитывается автоматически.
+        """
         reminder = self.reminders.get(reminder_id)
         if reminder is None:
             raise ValueError("Напоминание не найдено")
@@ -86,6 +91,9 @@ class ReminderService:
             reminder.amount = amount
         if due_date is not None:
             reminder.due_date = due_date
+        if period is not None:
+            reminder.period = period
+            reminder.is_repeating = bool(period)
         self.reminders.update(reminder)
         return reminder
 
