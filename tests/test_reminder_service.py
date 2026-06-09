@@ -24,6 +24,24 @@ def test_upcoming_includes_due_and_excludes_future(context):
     assert "Подписка" not in titles
 
 
+def test_update_reminder(context):
+    r = context.reminder_service.schedule(
+        Reminder(title="Старое", amount=Decimal("100"), due_date=date.today())
+    )
+    context.reminder_service.update(r.id, title="Новое", amount=Decimal("250"))
+    updated = context.reminders.get(r.id)
+    assert updated.title == "Новое"
+    assert updated.amount == Decimal("250")
+
+
+def test_delete_reminder(context):
+    r = context.reminder_service.schedule(
+        Reminder(title="Удалить", amount=Decimal("100"), due_date=date.today())
+    )
+    context.reminder_service.delete(r.id)
+    assert context.reminders.get(r.id) is None
+
+
 def test_upcoming_with_horizon(context):
     today = date.today()
     context.reminder_service.schedule(

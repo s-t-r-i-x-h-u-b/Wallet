@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import calendar
 from datetime import date, timedelta
+from decimal import Decimal
 
 from wallet.core.notifications import Notifier
 from wallet.models import Reminder
@@ -63,6 +64,33 @@ class ReminderService:
             reminder.due_date = next_due_date(reminder.due_date, reminder.period)
             self.reminders.update(reminder)
         return reminder
+
+    def update(
+        self,
+        reminder_id: int,
+        title: str | None = None,
+        amount: Decimal | None = None,
+        due_date: date | None = None,
+    ) -> Reminder:
+        """Изменить название, сумму и/или срок платежа."""
+        reminder = self.reminders.get(reminder_id)
+        if reminder is None:
+            raise ValueError("Напоминание не найдено")
+        if title is not None:
+            if not title.strip():
+                raise ValueError("Название не может быть пустым")
+            reminder.title = title.strip()
+        if amount is not None:
+            if amount <= 0:
+                raise ValueError("Сумма должна быть положительной")
+            reminder.amount = amount
+        if due_date is not None:
+            reminder.due_date = due_date
+        self.reminders.update(reminder)
+        return reminder
+
+    def delete(self, reminder_id: int) -> None:
+        self.reminders.delete(reminder_id)
 
     def notify_due(self, notifier: Notifier, until: date | None = None) -> int:
         """Разослать уведомления по наступившим напоминаниям. Возвращает их число."""
