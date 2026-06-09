@@ -18,7 +18,6 @@ from wallet.app_context import AppContext
 from wallet.core import vault
 from wallet.models import CategoryKind, Reminder, Transaction, TransactionType
 
-DATA_DIR = Path.home() / ".wallet"
 NO_CATEGORY = "(без категории)"
 PERIOD_MAP = {
     "Ежемесячно": "monthly",
@@ -395,6 +394,12 @@ ScreenManager:
         def _main_ids(self):
             return self.root.get_screen("main").ids
 
+        def _data_dir(self) -> Path:
+            """Каталог данных приложения (приватный, зависит от платформы)."""
+            base = Path(self.user_data_dir)
+            base.mkdir(parents=True, exist_ok=True)
+            return base
+
         def _toast(self, text: str) -> None:
             try:
                 from kivymd.uix.snackbar import Snackbar
@@ -446,7 +451,7 @@ ScreenManager:
                 self._login_ids().status.text = "Введите пароль"
                 return
             try:
-                self.context = AppContext.init_vault(DATA_DIR, password)
+                self.context = AppContext.init_vault(self._data_dir(), password)
             except FileExistsError:
                 self._login_ids().status.text = "Хранилище уже существует — войдите"
                 return
@@ -454,11 +459,11 @@ ScreenManager:
 
         def login(self):
             password = self._login_ids().password.text
-            if not vault.vault_exists(DATA_DIR):
+            if not vault.vault_exists(self._data_dir()):
                 self._login_ids().status.text = "Хранилище не создано — создайте его"
                 return
             try:
-                self.context = AppContext.open_vault(DATA_DIR, password)
+                self.context = AppContext.open_vault(self._data_dir(), password)
             except vault.InvalidPasswordError:
                 self._login_ids().status.text = "Неверный пароль"
                 return
@@ -1028,17 +1033,23 @@ ScreenManager:
         # --- аналитика ---
 
         def build_pie(self):
-            DATA_DIR.mkdir(parents=True, exist_ok=True)
-            path = DATA_DIR / "chart_pie.png"
-            self.context.chart_service.expenses_pie(
-                path, self._day_start(self.an_from), self._day_end(self.an_to))
+            path = self._data_dir() / "chart_pie.png"
+            try:
+                self.context.chart_service.expenses_pie(
+                    path, self._day_start(self.an_from), self._day_end(self.an_to))
+            except ImportError:
+                self._toast("Диаграммы недоступны: не установлен matplotlib")
+                return
             self._set_chart(path)
 
         def build_dynamics(self):
-            DATA_DIR.mkdir(parents=True, exist_ok=True)
-            path = DATA_DIR / "chart_dyn.png"
-            self.context.chart_service.dynamics_chart(
-                path, self._day_start(self.an_from), self._day_end(self.an_to))
+            path = self._data_dir() / "chart_dyn.png"
+            try:
+                self.context.chart_service.dynamics_chart(
+                    path, self._day_start(self.an_from), self._day_end(self.an_to))
+            except ImportError:
+                self._toast("Диаграммы недоступны: не установлен matplotlib")
+                return
             self._set_chart(path)
 
         def _set_chart(self, path):

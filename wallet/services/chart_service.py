@@ -11,19 +11,29 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
-import matplotlib
-
-matplotlib.use("Agg")  # backend без графической оболочки
-import matplotlib.pyplot as plt  # noqa: E402
-
-from wallet.services.analytics_service import AnalyticsService  # noqa: E402
+from wallet.services.analytics_service import AnalyticsService
 
 
 class ChartService:
-    """Готовит изображения диаграмм на основе данных AnalyticsService."""
+    """Готовит изображения диаграмм на основе данных AnalyticsService.
+
+    matplotlib импортируется по требованию: библиотека тяжёлая и не всегда
+    доступна на мобильной платформе, поэтому её отсутствие не должно мешать
+    запуску приложения. Если matplotlib не установлен, методы построения
+    диаграмм возбуждают ImportError, который обрабатывается слоем интерфейса.
+    """
 
     def __init__(self, analytics: AnalyticsService):
         self.analytics = analytics
+
+    @staticmethod
+    def _pyplot():
+        import matplotlib
+
+        matplotlib.use("Agg")  # backend без графической оболочки
+        import matplotlib.pyplot as plt
+
+        return plt
 
     def expenses_pie(
         self,
@@ -32,6 +42,7 @@ class ChartService:
         date_to: Optional[datetime] = None,
     ) -> Path:
         """Круговая диаграмма структуры расходов по категориям."""
+        plt = self._pyplot()
         data = self.analytics.expenses_by_category(date_from, date_to)
         fig, ax = plt.subplots()
         if data:
@@ -54,6 +65,7 @@ class ChartService:
         date_to: Optional[datetime] = None,
     ) -> Path:
         """Столбчатая диаграмма соотношения доходов и расходов."""
+        plt = self._pyplot()
         totals = self.analytics.income_vs_expense(date_from, date_to)
         fig, ax = plt.subplots()
         ax.bar(
@@ -74,6 +86,7 @@ class ChartService:
         date_to: Optional[datetime] = None,
     ) -> Path:
         """Диаграмма динамики доходов и расходов по месяцам за период."""
+        plt = self._pyplot()
         data = self.analytics.monthly_dynamics(date_from, date_to)
         labels = [d[0] for d in data]
         incomes = [float(d[1]) for d in data]
