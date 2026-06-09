@@ -30,10 +30,15 @@ PERIOD_LABELS = {v: k for k, v in PERIOD_MAP.items()}
 
 try:  # pragma: no cover - наличие GUI зависит от среды
     from kivy.lang import Builder
+    from kivy.metrics import dp
     from kivy.uix.image import Image  # noqa: F401  (используется в KV)
     from kivymd.app import MDApp
-    from kivymd.uix.list import TwoLineListItem
+    from kivymd.uix.boxlayout import MDBoxLayout
+    from kivymd.uix.button import MDFlatButton, MDRaisedButton
+    from kivymd.uix.dialog import MDDialog
+    from kivymd.uix.list import ThreeLineListItem, TwoLineListItem
     from kivymd.uix.screen import MDScreen
+    from kivymd.uix.textfield import MDTextField
 
     KIVYMD_AVAILABLE = True
 except Exception:  # noqa: BLE001
@@ -150,6 +155,18 @@ ScreenManager:
                         size_hint_y: None
                         height: dp(48)
                         spacing: dp(8)
+                        MDTextField:
+                            id: new_cat
+                            hint_text: 'Новая категория'
+                        MDRaisedButton:
+                            text: '+ категория'
+                            size_hint_x: None
+                            width: dp(140)
+                            on_release: app.add_category()
+                    MDBoxLayout:
+                        size_hint_y: None
+                        height: dp(48)
+                        spacing: dp(8)
                         MDFlatButton:
                             id: tx_date_btn
                             text: 'Дата: сегодня'
@@ -214,7 +231,7 @@ ScreenManager:
                         pos_hint: {'center_x': 0.5}
                         on_release: app.add_reminder()
                     MDLabel:
-                        text: 'Нажмите на платёж: разовый — оплатить, повторяющийся — перенести'
+                        text: 'Нажмите на платёж, чтобы изменить, оплатить/перенести или удалить'
                         theme_text_color: 'Secondary'
                         font_style: 'Caption'
                         size_hint_y: None
@@ -258,6 +275,12 @@ ScreenManager:
                             size_hint_x: None
                             width: dp(120)
                             on_release: app.contribute_goal()
+                    MDLabel:
+                        text: 'Нажмите на цель, чтобы изменить или удалить'
+                        theme_text_color: 'Secondary'
+                        font_style: 'Caption'
+                        size_hint_y: None
+                        height: dp(28)
                     ScrollView:
                         MDList:
                             id: goals_list
@@ -270,6 +293,18 @@ ScreenManager:
                     orientation: 'vertical'
                     padding: dp(12)
                     spacing: dp(8)
+                    MDBoxLayout:
+                        size_hint_y: None
+                        height: dp(48)
+                        spacing: dp(8)
+                        MDLabel:
+                            text: 'Период:'
+                            size_hint_x: None
+                            width: dp(80)
+                        Spinner:
+                            id: an_period
+                            text: 'Всё время'
+                            values: ['Всё время', 'Текущий месяц', 'Последние 3 месяца', 'Последние 6 месяцев']
                     MDBoxLayout:
                         size_hint_y: None
                         height: dp(48)
@@ -290,6 +325,17 @@ ScreenManager:
     class MainScreen(MDScreen):
         pass
 
+    class _EditContent(MDBoxLayout):
+        """Содержимое диалога редактирования с двумя полями ввода."""
+
+        def __init__(self, field1, field2, **kwargs):
+            super().__init__(orientation="vertical", spacing=dp(8),
+                             padding=dp(8), size_hint_y=None, height=dp(160), **kwargs)
+            self.field1 = field1
+            self.field2 = field2
+            self.add_widget(field1)
+            self.add_widget(field2)
+
     class WalletApp(MDApp):
         """Корневое приложение KivyMD."""
 
@@ -299,6 +345,7 @@ ScreenManager:
             self.account = None
             self.tx_date = date.today()
             self.rem_date = date.today()
+            self._dialog = None
 
         def build(self):
             self.title = "Wallet"
@@ -413,7 +460,7 @@ ScreenManager:
             self.rem_date = value
             self._main_ids().rem_date_btn.text = f"Срок: {value.strftime('%d.%m.%Y')}"
 
-        # --- операции ---
+        # --- категории ---
 
         def _resolve_category(self, name: str, kind: CategoryKind):
             name = (name or "").strip()
@@ -423,6 +470,24 @@ ScreenManager:
             if existing:
                 return existing.id
             return self.context.category_service.add(name, kind).id
+
+        def add_category(self):
+            ids = self._main_ids()
+            name = ids.new_cat.text.strip()
+            if not name:
+                self._toast("Введите название категории")
+                return
+            kind = (CategoryKind.EXPENSE if ids.tx_type.text == "Расход"
+                    else CategoryKind.INCOME)
+            if self._category_by_name(name) is None:
+                self.context.category_service.add(name, kind)
+                self.context.save()
+            ids.new_cat.text = ""
+            self._populate_spinners()
+            ids.tx_category.text = name
+            self._toast("Категория добавлена")
+
+        # --- операции ---
 
         def add_transaction(self):
             ids = self._main_ids()
@@ -502,6 +567,55 @@ ScreenManager:
             self.refresh_all()
             self._toast("Цель пополнена")
 
+        def open_goal_dialog(self, goal_id):
+            goal = self.context.goals.get(goal_id)
+            if goal is None:
+                return
+            content = _EditContent(
+                MDTextField(text=goal.title, hint_text="Название цели"),
+                MDTextField(text=str(goal.target_amount), hint_text="Целевая сумма",
+                            input_filter="float"),
+            )
+            self._dialog = MDDialog(
+                title="Редактирование цели",
+                type="custom",
+                content_cls=content,
+                buttons=[
+                    MDFlatButton(text="Удалить", theme_text_color="Custom",
+                                 text_color=(0.8, 0.1, 0.1, 1),
+                                 on_release=lambda *_: self._delete_goal(goal_id)),
+                    MDFlatButton(text="Отмена",
+                                 on_release=lambda *_: self._dialog.dismiss()),
+                    MDRaisedButton(text="Сохранить",
+                                   on_release=lambda *_: self._save_goal(goal_id, content)),
+                ],
+            )
+            self._dialog.open()
+
+        def _save_goal(self, goal_id, content):
+            try:
+                target = Decimal(content.field2.text)
+            except (InvalidOperation, ValueError):
+                self._toast("Некорректная целевая сумма")
+                return
+            try:
+                self.context.goal_service.update(
+                    goal_id, title=content.field1.text, target_amount=target)
+            except ValueError as exc:
+                self._toast(str(exc))
+                return
+            self.context.save()
+            self._dialog.dismiss()
+            self.refresh_all()
+            self._toast("Цель обновлена")
+
+        def _delete_goal(self, goal_id):
+            self.context.goal_service.delete(goal_id)
+            self.context.save()
+            self._dialog.dismiss()
+            self.refresh_all()
+            self._toast("Цель удалена")
+
         # --- платежи (напоминания) ---
 
         def add_reminder(self):
@@ -542,23 +656,100 @@ ScreenManager:
                 self.context.reminder_service.advance(reminder_id)
                 self._toast("Платёж перенесён на следующий период")
             else:
-                self.context.reminders.delete(reminder_id)
+                self.context.reminder_service.delete(reminder_id)
                 self._toast("Платёж отмечен оплаченным")
             self.context.save()
-            self._refresh_reminders()
+            self.refresh_all()
+
+        def open_reminder_dialog(self, reminder_id, repeating):
+            reminder = self.context.reminders.get(reminder_id)
+            if reminder is None:
+                return
+            content = _EditContent(
+                MDTextField(text=reminder.title, hint_text="Название платежа"),
+                MDTextField(text=str(reminder.amount), hint_text="Сумма",
+                            input_filter="float"),
+            )
+            pay_label = "Перенести" if repeating else "Оплатить"
+            self._dialog = MDDialog(
+                title="Платёж",
+                type="custom",
+                content_cls=content,
+                buttons=[
+                    MDFlatButton(text=pay_label,
+                                 on_release=lambda *_: self._pay_from_dialog(
+                                     reminder_id, repeating)),
+                    MDFlatButton(text="Удалить", theme_text_color="Custom",
+                                 text_color=(0.8, 0.1, 0.1, 1),
+                                 on_release=lambda *_: self._delete_reminder(reminder_id)),
+                    MDRaisedButton(text="Сохранить",
+                                   on_release=lambda *_: self._save_reminder(
+                                       reminder_id, content)),
+                ],
+            )
+            self._dialog.open()
+
+        def _pay_from_dialog(self, reminder_id, repeating):
+            self._dialog.dismiss()
+            self.pay_reminder(reminder_id, repeating)
+
+        def _save_reminder(self, reminder_id, content):
+            try:
+                amount = Decimal(content.field2.text)
+            except (InvalidOperation, ValueError):
+                self._toast("Некорректная сумма")
+                return
+            try:
+                self.context.reminder_service.update(
+                    reminder_id, title=content.field1.text, amount=amount)
+            except ValueError as exc:
+                self._toast(str(exc))
+                return
+            self.context.save()
+            self._dialog.dismiss()
+            self.refresh_all()
+            self._toast("Платёж обновлён")
+
+        def _delete_reminder(self, reminder_id):
+            self.context.reminder_service.delete(reminder_id)
+            self.context.save()
+            self._dialog.dismiss()
+            self.refresh_all()
+            self._toast("Платёж удалён")
 
         # --- аналитика ---
 
+        def _period_bounds(self):
+            """Вернуть (date_from, date_to, months) по выбранному периоду."""
+            sel = self._main_ids().an_period.text
+            today = date.today()
+
+            def first_of_month_back(n: int) -> datetime:
+                index = today.month - 1 - n
+                year = today.year + index // 12
+                month = index % 12 + 1
+                return datetime(year, month, 1)
+
+            if sel == "Текущий месяц":
+                return datetime(today.year, today.month, 1), None, 1
+            if sel == "Последние 3 месяца":
+                return first_of_month_back(2), None, 3
+            if sel == "Последние 6 месяцев":
+                return first_of_month_back(5), None, 6
+            return None, None, 60
+
         def build_pie(self):
             DATA_DIR.mkdir(parents=True, exist_ok=True)
+            date_from, date_to, _ = self._period_bounds()
             path = DATA_DIR / "chart_pie.png"
-            self.context.chart_service.expenses_pie(path)
+            self.context.chart_service.expenses_pie(path, date_from, date_to)
             self._set_chart(path)
 
         def build_dynamics(self):
             DATA_DIR.mkdir(parents=True, exist_ok=True)
+            _, _, months = self._period_bounds()
             path = DATA_DIR / "chart_dyn.png"
-            self.context.chart_service.dynamics_chart(path)
+            self.context.chart_service.dynamics_chart(path, months)
             self._set_chart(path)
 
         def _set_chart(self, path):
@@ -589,19 +780,22 @@ ScreenManager:
             if goals and ids.goal_select.text in ("Цель", ""):
                 ids.goal_select.text = goals[0]
 
+        def _tx_item(self, tx):
+            sign = "−" if tx.type == TransactionType.EXPENSE else "+"
+            category = self._cat_name(tx.category_id) or "без категории"
+            return ThreeLineListItem(
+                text=f"{sign}{tx.amount} ₽",
+                secondary_text=f"{tx.created_at.strftime('%d.%m.%Y')} · {category}",
+                tertiary_text=tx.note or "—",
+            )
+
         def _refresh_dashboard(self):
             ids = self._main_ids()
             total = self.context.account_service.total_balance()
             ids.balance.text = f"Баланс: {total} ₽"
             ids.recent_list.clear_widgets()
             for tx in self.context.transaction_service.list()[:5]:
-                sign = "−" if tx.type == TransactionType.EXPENSE else "+"
-                ids.recent_list.add_widget(
-                    TwoLineListItem(
-                        text=f"{sign}{tx.amount} ₽",
-                        secondary_text=tx.note or tx.created_at.strftime("%d.%m.%Y"),
-                    )
-                )
+                ids.recent_list.add_widget(self._tx_item(tx))
 
         def _refresh_transactions(self):
             ids = self._main_ids()
@@ -613,33 +807,27 @@ ScreenManager:
             category_id = None
             if ids.flt_category.text not in ("Все", ""):
                 cat = self._category_by_name(ids.flt_category.text)
-                category_id = cat.id if cat else -1  # -1 => ничего не найдётся
+                category_id = cat.id if cat else -1
             ids.tx_list.clear_widgets()
             for tx in self.context.transaction_service.list(
                 category_id=category_id, tx_type=tx_type
             ):
-                sign = "−" if tx.type == TransactionType.EXPENSE else "+"
-                parts = [p for p in (tx.note, self._cat_name(tx.category_id)) if p]
-                parts.append(tx.created_at.strftime("%d.%m.%Y"))
-                ids.tx_list.add_widget(
-                    TwoLineListItem(
-                        text=f"{sign}{tx.amount} ₽",
-                        secondary_text=" · ".join(parts),
-                    )
-                )
+                ids.tx_list.add_widget(self._tx_item(tx))
 
         def _refresh_goals(self):
             ids = self._main_ids()
             ids.goals_list.clear_widgets()
             for goal in self.context.goal_service.list():
                 percent = int(goal.progress * 100)
-                ids.goals_list.add_widget(
-                    TwoLineListItem(
-                        text=goal.title,
-                        secondary_text=f"{goal.current_amount}/{goal.target_amount} ₽"
-                        f" ({percent}%)",
-                    )
+                status = " ✓ выполнена" if goal.is_reached else ""
+                item = TwoLineListItem(
+                    text=f"{goal.title}{status}",
+                    secondary_text=f"{goal.current_amount}/{goal.target_amount} ₽"
+                    f" ({percent}%)",
                 )
+                item.bind(on_release=lambda inst, gid=goal.id:
+                          self.open_goal_dialog(gid))
+                ids.goals_list.add_widget(item)
 
         def _refresh_reminders(self):
             ids = self._main_ids()
@@ -653,7 +841,7 @@ ScreenManager:
                 )
                 item.bind(
                     on_release=lambda inst, rid=r.id, rep=r.is_repeating:
-                    self.pay_reminder(rid, rep)
+                    self.open_reminder_dialog(rid, rep)
                 )
                 ids.rem_list.add_widget(item)
 
