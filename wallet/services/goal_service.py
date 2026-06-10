@@ -63,5 +63,8 @@ class GoalService:
     def delete(self, goal_id: int) -> None:
         self.goals.delete(goal_id)
 
+    def get(self, goal_id: int) -> Optional[Goal]:
+        return self.goals.get(goal_id)
+
     def list(self) -> list[Goal]:
         return self.goals.list()
