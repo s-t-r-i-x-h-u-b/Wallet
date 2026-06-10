@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from wallet.core.db import Database
@@ -56,16 +57,29 @@ def init_vault(data_dir: str | Path, password: str) -> Database:
 
 
 def change_password(db: Database, new_password: str) -> None:
-    """Сменить пароль открытого хранилища: новая соль, ключ и перешифрование."""
+    """Сменить пароль открытого хранилища: новая соль, ключ и перешифрование.
+
+    Порядок операций обеспечивает устойчивость к сбою: сначала база
+    атомарно перешифровывается новым ключом (db.save), и только затем
+    атомарно обновляется файл соли. Обе записи выполняются через временный
+    файл с os.replace, поэтому окно несогласованности сведено к минимуму.
+    """
     if db.path is None:
         raise ValueError("Хранилище не связано с файлом")
     if not new_password:
         raise ValueError("Пароль не может быть пустым")
     data_dir = db.path.parent
     salt = generate_salt()
-    _salt_path(data_dir).write_bytes(salt)
+
+    # 1) перешифровать и атомарно сохранить БД новым ключом
     db.encryption = EncryptionManager(derive_key(new_password, salt))
     db.save()
+
+    # 2) затем атомарно заменить файл соли (новая соль соответствует новому ключу)
+    salt_path = _salt_path(data_dir)
+    salt_tmp = salt_path.with_name(salt_path.name + ".tmp")
+    salt_tmp.write_bytes(salt)
+    os.replace(salt_tmp, salt_path)
 
 
 def open_vault(data_dir: str | Path, password: str) -> Database:
