@@ -1,0 +1,60 @@
+﻿============================= test session starts =============================
+platform win32 -- Python 3.12.7, pytest-9.0.3, pluggy-1.6.0
+rootdir: C:\Users\Александр\Documents\Project\Wallet
+configfile: pytest.ini
+testpaths: tests
+plugins: cov-7.1.0
+collected 64 items
+
+tests\test_account_service.py ...                                        [  4%]
+tests\test_analytics_service.py ...                                      [  9%]
+tests\test_auth_service.py ....                                          [ 15%]
+tests\test_category_service.py ...                                       [ 20%]
+tests\test_chart_service.py ....                                         [ 26%]
+tests\test_db_encryption.py ...                                          [ 31%]
+tests\test_goal_service.py ......                                        [ 40%]
+tests\test_integration.py ...                                            [ 45%]
+tests\test_notifications.py ...                                          [ 50%]
+tests\test_reminder_recurrence.py .......                                [ 60%]
+tests\test_reminder_service.py .....                                     [ 68%]
+tests\test_security.py .......                                           [ 79%]
+tests\test_transaction_edit.py ...                                       [ 84%]
+tests\test_transaction_service.py .....                                  [ 92%]
+tests\test_vault.py .....                                                [100%]
+
+=============================== tests coverage ================================
+_______________ coverage: platform win32, python 3.12.7-final-0 _______________
+
+Name                                            Stmts   Miss  Cover   Missing
+-----------------------------------------------------------------------------
+wallet\__init__.py                                  1      0   100%
+wallet\app_context.py                              41      0   100%
+wallet\core\__init__.py                             0      0   100%
+wallet\core\db.py                                  46      9    80%   102, 112, 124, 126, 136-137, 140-142
+wallet\core\notifications.py                       19      4    79%   32-34, 43-44
+wallet\core\security.py                            44      1    98%   72
+wallet\core\vault.py                               49      3    94%   46, 61, 63
+wallet\models\__init__.py                           2      0   100%
+wallet\models\entities.py                          69      1    99%   93
+wallet\repositories\__init__.py                     7      0   100%
+wallet\repositories\account_repository.py          17      0   100%
+wallet\repositories\base.py                        20      0   100%
+wallet\repositories\category_repository.py         16      2    88%   41-45
+wallet\repositories\goal_repository.py             18      0   100%
+wallet\repositories\reminder_repository.py         21      0   100%
+wallet\repositories\transaction_repository.py      40      6    85%   76-77, 82-83, 85-86
+wallet\repositories\user_repository.py             22      2    91%   41-45
+wallet\services\__init__.py                         9      0   100%
+wallet\services\account_service.py                 16      0   100%
+wallet\services\analytics_service.py               35      0   100%
+wallet\services\auth_service.py                    23      2    91%   23, 34
+wallet\services\category_service.py                25      1    96%   27
+wallet\services\chart_service.py                   56      1    98%   107
+wallet\services\goal_service.py                    40      5    88%   35, 37, 51, 54, 58
+wallet\services\reminder_service.py                68      6    91%   48, 62, 83, 86, 90, 93
+wallet\services\transaction_service.py             49      6    88%   34, 49, 54, 57, 59, 87
+wallet\ui\__init__.py                               0      0   100%
+wallet\ui\app.py                                  547    547     0%   11-1159
+-----------------------------------------------------------------------------
+TOTAL                                            1300    596    54%
+============================= 64 passed in 5.44s ==============================

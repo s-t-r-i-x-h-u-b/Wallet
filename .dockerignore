@@ -1,0 +1,13 @@
+# Артефакты сборки Android (гигабайты) и прочее, что не нужно в CI-образе
+.buildozer/
+bin/
+.git/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+*.apk
+*.db
+*.db.enc
+reports/
