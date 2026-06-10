@@ -52,6 +52,9 @@ class ReminderService:
         """Напоминания со сроком не позднее указанной даты (по умолчанию сегодня)."""
         return self.reminders.list_upcoming(until or date.today())
 
+    def get(self, reminder_id: int) -> Reminder | None:
+        return self.reminders.get(reminder_id)
+
     def list(self) -> list[Reminder]:
         return self.reminders.list()
 

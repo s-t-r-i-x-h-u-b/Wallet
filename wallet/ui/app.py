@@ -754,7 +754,7 @@ ScreenManager:
             self._refresh_transactions()
 
         def open_tx_dialog(self, tx_id):
-            tx = self.context.transactions.get(tx_id)
+            tx = self.context.transaction_service.get(tx_id)
             if tx is None:
                 return
             names = [c.name for c in self._categories()]
@@ -795,13 +795,12 @@ ScreenManager:
             category_id = self._resolve_category(content.fields[2].text, kind)
             note = content.fields[3].text
             try:
-                tx = self.context.transaction_service.edit(
-                    tx_id, amount=amount, note=note, tx_type=tx_type)
+                self.context.transaction_service.edit(
+                    tx_id, amount=amount, note=note, tx_type=tx_type,
+                    category_id=category_id)  # все изменения — через сервис
             except ValueError as exc:
                 self._toast(str(exc))
                 return
-            tx.category_id = category_id  # категория может быть снята (None)
-            self.context.transactions.update(tx)
             self.context.save()
             self._dialog.dismiss()
             self.refresh_all()
@@ -859,7 +858,7 @@ ScreenManager:
             self._toast("Цель пополнена")
 
         def open_goal_dialog(self, goal_id):
-            goal = self.context.goals.get(goal_id)
+            goal = self.context.goal_service.get(goal_id)
             if goal is None:
                 return
             content = _EditContent(
@@ -957,7 +956,7 @@ ScreenManager:
             self.refresh_all()
 
         def open_reminder_dialog(self, reminder_id, repeating):
-            reminder = self.context.reminders.get(reminder_id)
+            reminder = self.context.reminder_service.get(reminder_id)
             if reminder is None:
                 return
             period_spinner = Spinner(

@@ -25,14 +25,36 @@ def test_edit_can_change_category(context, account):
         Transaction(amount=Decimal("100"), type=TransactionType.EXPENSE,
                     account_id=account.id, category_id=food.id)
     )
-    # имитация сохранения из UI-диалога: правка суммы + смена категории
-    edited = context.transaction_service.edit(tx.id, amount=Decimal("150"))
-    edited.category_id = taxi.id
-    context.transactions.update(edited)
+    # смена суммы и категории — одним вызовом сервиса
+    context.transaction_service.edit(tx.id, amount=Decimal("150"), category_id=taxi.id)
 
-    result = context.transactions.get(tx.id)
+    result = context.transaction_service.get(tx.id)
     assert result.category_id == taxi.id
     assert result.amount == Decimal("150")
+
+
+def test_edit_can_clear_category(context, account):
+    from wallet.models import Category, CategoryKind
+
+    food = context.categories.add(Category(name="Еда", kind=CategoryKind.EXPENSE))
+    tx = context.transaction_service.add(
+        Transaction(amount=Decimal("100"), type=TransactionType.EXPENSE,
+                    account_id=account.id, category_id=food.id)
+    )
+    context.transaction_service.edit(tx.id, category_id=None)  # снять категорию
+    assert context.transaction_service.get(tx.id).category_id is None
+
+
+def test_edit_without_category_keeps_it(context, account):
+    from wallet.models import Category, CategoryKind
+
+    food = context.categories.add(Category(name="Еда", kind=CategoryKind.EXPENSE))
+    tx = context.transaction_service.add(
+        Transaction(amount=Decimal("100"), type=TransactionType.EXPENSE,
+                    account_id=account.id, category_id=food.id)
+    )
+    context.transaction_service.edit(tx.id, note="изменено")  # категорию не трогаем
+    assert context.transaction_service.get(tx.id).category_id == food.id
 
 
 def test_edit_type_recalculates_balance(context, account):

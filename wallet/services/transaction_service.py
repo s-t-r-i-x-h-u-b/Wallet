@@ -9,6 +9,10 @@ from typing import Optional
 from wallet.models import Transaction, TransactionType
 from wallet.repositories import AccountRepository, TransactionRepository
 
+# Маркер «значение не передано»: позволяет отличить «не менять поле» от
+# «установить None» (например, снять категорию) в методе edit.
+_UNSET = object()
+
 
 class TransactionService:
     """Добавление, удаление и выборка транзакций с обновлением баланса счёта."""
@@ -20,6 +24,9 @@ class TransactionService:
     ):
         self.transactions = transactions
         self.accounts = accounts
+
+    def get(self, transaction_id: int) -> Optional[Transaction]:
+        return self.transactions.get(transaction_id)
 
     def add(self, transaction: Transaction) -> Transaction:
         if transaction.amount <= 0:
@@ -39,11 +46,15 @@ class TransactionService:
         self,
         transaction_id: int,
         amount: Optional[Decimal] = None,
-        category_id: Optional[int] = None,
+        category_id=_UNSET,
         note: Optional[str] = None,
         tx_type: Optional[TransactionType] = None,
     ) -> Transaction:
-        """Изменить транзакцию с корректным пересчётом баланса счёта."""
+        """Изменить транзакцию с корректным пересчётом баланса счёта.
+
+        Для category_id используется маркер _UNSET: если аргумент не передан —
+        категория не меняется; передача None — снимает категорию.
+        """
         tx = self.transactions.get(transaction_id)
         if tx is None:
             raise ValueError("Транзакция не найдена")
@@ -53,7 +64,7 @@ class TransactionService:
             if amount <= 0:
                 raise ValueError("Сумма операции должна быть положительной")
             tx.amount = amount
-        if category_id is not None:
+        if category_id is not _UNSET:
             tx.category_id = category_id
         if note is not None:
             tx.note = note
