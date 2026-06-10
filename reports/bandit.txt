@@ -1,5 +1,5 @@
 ﻿bandit : [main]	INFO	profile include tests: None
-At line:4 char:1
+At line:3 char:1
 + bandit -r wallet 2>&1 | Out-File -Encoding utf8 reports\bandit.txt
 + ~~~~~~~~~~~~~~~~~~~~~
     + CategoryInfo          : NotSpecified: ([main]	INFO	profile include tests: None:String) [], RemoteException
@@ -15,13 +15,13 @@ At line:4 char:1
 [tester]	WARNING	nosec encountered (B608), but no failed test on file wallet\repositories\transaction_repository.py:92
 [manager]	WARNING	Test in comment: fail is not a test name or id, ignoring
 [manager]	WARNING	Test in comment: safe is not a test name or id, ignoring
-Run started:2026-06-10 11:08:06.150027+00:00
+Run started:2026-06-10 12:09:43.233515+00:00
 
 Test results:
 	No issues identified.
 
 Code scanned:
-	Total lines of code: 2373
+	Total lines of code: 2399
 	Total lines skipped (#nosec): 0
 	Total potential issues skipped due to specifically being disabled (e.g., #nosec BXXX): 6
 
