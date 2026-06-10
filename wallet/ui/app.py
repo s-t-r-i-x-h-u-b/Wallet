@@ -502,8 +502,8 @@ ScreenManager:
             """
             try:
                 self.context.reminder_service.notify_due(self.context.notifier)
-            except Exception:  # noqa: BLE001
-                pass
+            except Exception:  # noqa: BLE001  # nosec B110 - намеренный fail-safe
+                pass  # уведомления необязательны: их сбой не должен ломать вход
 
         # --- выбор даты ---
 

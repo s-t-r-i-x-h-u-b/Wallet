@@ -39,17 +39,24 @@ class BaseRepository(IRepository[T]):
     def _row_to_entity(self, row: sqlite3.Row) -> T:  # pragma: no cover
         raise NotImplementedError
 
+    # Примечание по безопасности: имя таблицы (self.table) — внутренняя
+    # константа класса-репозитория, не пользовательский ввод. Все значения,
+    # приходящие извне, передаются параметрами запроса (?). Поэтому SQL-
+    # инъекция невозможна, предупреждения B608 — ложные срабатывания.
+
     def get(self, entity_id: int) -> Optional[T]:
         cur = self.conn.execute(
-            f"SELECT * FROM {self.table} WHERE id = ?", (entity_id,)
+            f"SELECT * FROM {self.table} WHERE id = ?", (entity_id,)  # nosec B608
         )
         row = cur.fetchone()
         return self._row_to_entity(row) if row else None
 
     def list(self) -> list[T]:
-        cur = self.conn.execute(f"SELECT * FROM {self.table} ORDER BY id")
+        cur = self.conn.execute(
+            f"SELECT * FROM {self.table} ORDER BY id")  # nosec B608
         return [self._row_to_entity(r) for r in cur.fetchall()]
 
     def delete(self, entity_id: int) -> None:
-        self.conn.execute(f"DELETE FROM {self.table} WHERE id = ?", (entity_id,))
+        self.conn.execute(
+            f"DELETE FROM {self.table} WHERE id = ?", (entity_id,))  # nosec B608
         self.conn.commit()

@@ -85,8 +85,11 @@ class TransactionRepository(BaseRepository[Transaction]):
             clauses.append("created_at <= ?")
             params.append(date_to.isoformat())
 
+        # where собирается только из внутренних имён столбцов; пользовательские
+        # значения передаются параметрами (params) -> инъекция невозможна.
         where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
         cur = self.conn.execute(
-            f"SELECT * FROM transactions{where} ORDER BY created_at DESC", params
+            f"SELECT * FROM transactions{where} ORDER BY created_at DESC",  # nosec B608
+            params,
         )
         return [self._row_to_entity(r) for r in cur.fetchall()]
