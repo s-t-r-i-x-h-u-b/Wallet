@@ -1,12 +1,17 @@
-"""Локальные уведомления (кроссплатформенно через plyer) с запасным вариантом.
+"""Локальные уведомления с реализациями под разные платформы.
 
-Notifier — это протокол отправки уведомлений. PlyerNotifier использует
-системные уведомления через plyer; NullNotifier ничего не показывает, но
-запоминает отправленное (удобно для тестов и сред без графической оболочки).
+Notifier — протокол отправки уведомления. Реализации:
+- AndroidNotifier — системные уведомления Android напрямую через API (pyjnius)
+  с созданием NotificationChannel (обязателен на Android 8+; без него система
+  молча не показывает уведомление — типичная причина «не приходит»);
+- PlyerNotifier — кроссплатформенная отправка через plyer (десктоп);
+- NullNotifier — заглушка (тесты/среды без графической оболочки), запоминает
+  отправленное.
 """
 
 from __future__ import annotations
 
+import os
 from typing import Protocol, runtime_checkable
 
 
@@ -26,16 +31,66 @@ class NullNotifier:
 
 
 class PlyerNotifier:
-    """Системные уведомления через plyer."""
+    """Системные уведомления через plyer (десктоп-платформы)."""
 
     def notify(self, title: str, message: str) -> None:
-        from plyer import notification  # импорт по месту — backend зависит от ОС
+        from plyer import notification
 
         notification.notify(title=title, message=message)
 
 
+class AndroidNotifier:
+    """Системные уведомления Android через нативный API (pyjnius).
+
+    Создаёт канал уведомлений (Android 8+) и публикует уведомление напрямую
+    через NotificationManager.
+    """
+
+    _channel_ready = False
+    _counter = 1
+    _CHANNEL_ID = "wallet_payments"
+
+    def notify(self, title: str, message: str) -> None:
+        from jnius import autoclass
+
+        PythonActivity = autoclass("org.kivy.android.PythonActivity")
+        Context = autoclass("android.content.Context")
+        Builder = autoclass("android.app.Notification$Builder")
+        NotificationManager = autoclass("android.app.NotificationManager")
+        VERSION = autoclass("android.os.Build$VERSION")
+
+        activity = PythonActivity.mActivity
+        service = activity.getSystemService(Context.NOTIFICATION_SERVICE)
+
+        if VERSION.SDK_INT >= 26:
+            if not AndroidNotifier._channel_ready:
+                NotificationChannel = autoclass("android.app.NotificationChannel")
+                channel = NotificationChannel(
+                    AndroidNotifier._CHANNEL_ID, "Платежи",
+                    NotificationManager.IMPORTANCE_HIGH)
+                service.createNotificationChannel(channel)
+                AndroidNotifier._channel_ready = True
+            builder = Builder(activity, AndroidNotifier._CHANNEL_ID)
+        else:
+            builder = Builder(activity)
+
+        builder.setSmallIcon(activity.getApplicationInfo().icon)
+        builder.setContentTitle(title)
+        builder.setContentText(message)
+        builder.setAutoCancel(True)
+
+        AndroidNotifier._counter += 1
+        service.notify(AndroidNotifier._counter, builder.build())
+
+
 def default_notifier() -> Notifier:
-    """Вернуть PlyerNotifier, если plyer доступен, иначе NullNotifier."""
+    """Выбрать реализацию под текущую платформу."""
+    # python-for-android выставляет переменную окружения ANDROID_ARGUMENT
+    if os.environ.get("ANDROID_ARGUMENT") is not None:
+        try:
+            return AndroidNotifier()
+        except Exception:  # noqa: BLE001
+            pass
     try:
         import plyer  # noqa: F401
 
