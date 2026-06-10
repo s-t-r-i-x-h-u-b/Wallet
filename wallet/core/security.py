@@ -18,7 +18,10 @@ import hashlib
 import hmac
 import os
 
-from Crypto.Cipher import AES
+# Импорт из пакета pycryptodome (актуальная поддерживаемая замена pycrypto
+# с тем же namespace `Crypto`). Bandit B413 здесь — ложное срабатывание:
+# предупреждение относится к устаревшему pycrypto, который не используется.
+from Crypto.Cipher import AES  # nosec B413
 
 PBKDF2_ITERATIONS = 200_000
 KEY_LENGTH = 32  # 256 бит -> AES-256
