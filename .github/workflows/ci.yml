@@ -1,0 +1,23 @@
+name: CI
+
+# Непрерывная интеграция: контроль качества кода в контейнере Docker —
+# тесты с покрытием, статический анализ (Bandit) и проверка зависимостей
+# (pip-audit). Запускается при push и pull request.
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build CI image
+        run: docker build -t wallet-ci .
+
+      - name: Run tests, SAST and SCA
+        run: docker run --rm wallet-ci
