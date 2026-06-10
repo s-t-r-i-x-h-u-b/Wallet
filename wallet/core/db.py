@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 from pathlib import Path
 from typing import Optional
@@ -119,13 +120,21 @@ class Database:
         return self._conn
 
     def save(self) -> None:
-        """Сериализовать БД, зашифровать и записать в файл."""
+        """Сериализовать БД, зашифровать и атомарно записать в файл.
+
+        Запись выполняется во временный файл с последующей атомарной заменой
+        (os.replace). Это исключает повреждение существующего файла при сбое
+        в процессе записи: целевой `.db.enc` либо остаётся прежним, либо
+        полностью заменяется новым.
+        """
         if not self.path:
             return  # in-memory режим — сохранять некуда
         if self.encryption is None:
             raise ValueError("Для сохранения зашифрованного файла нужен ключ")
         data = self.connection.serialize()
-        self.path.write_bytes(self.encryption.encrypt(data))
+        tmp_path = self.path.with_name(self.path.name + ".tmp")
+        tmp_path.write_bytes(self.encryption.encrypt(data))
+        os.replace(tmp_path, self.path)
 
     def close(self) -> None:
         if self._conn is not None:
