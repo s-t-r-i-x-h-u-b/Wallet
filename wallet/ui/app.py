@@ -36,7 +36,9 @@ try:  # pragma: no cover - наличие GUI зависит от среды
     from kivymd.uix.boxlayout import MDBoxLayout
     from kivymd.uix.button import MDFlatButton, MDRaisedButton
     from kivymd.uix.dialog import MDDialog
+    from kivymd.uix.label import MDLabel
     from kivymd.uix.list import ThreeLineListItem, TwoLineListItem
+    from kivymd.uix.progressbar import MDProgressBar
     from kivymd.uix.screen import MDScreen
     from kivymd.uix.textfield import MDTextField
 
@@ -78,7 +80,6 @@ ScreenManager:
             id: password
             hint_text: 'Пароль'
             password: True
-            mode: 'rectangle'
         MDRaisedButton:
             text: 'Войти'
             pos_hint: {'center_x': 0.5}
@@ -133,94 +134,99 @@ ScreenManager:
                 name: 'tx'
                 text: 'Операции'
                 icon: 'format-list-bulleted'
-                MDBoxLayout:
-                    orientation: 'vertical'
-                    padding: dp(12)
-                    spacing: dp(6)
-                    MDTextField:
-                        id: tx_amount
-                        hint_text: 'Сумма'
-                        input_filter: 'float'
+                ScrollView:
                     MDBoxLayout:
-                        size_hint_y: None
-                        height: dp(48)
-                        spacing: dp(8)
-                        Spinner:
-                            id: tx_type
-                            text: 'Расход'
-                            values: ['Расход', 'Доход']
-                        Spinner:
-                            id: tx_category
-                            text: 'Категория'
-                    MDBoxLayout:
-                        size_hint_y: None
-                        height: dp(48)
-                        spacing: dp(8)
-                        MDFlatButton:
-                            text: 'Добавить категорию'
-                            on_release: app.open_add_category()
-                        MDFlatButton:
-                            text: 'Удалить категорию'
-                            theme_text_color: 'Custom'
-                            text_color: 0.8, 0.2, 0.2, 1
-                            on_release: app.open_delete_category()
-                    MDBoxLayout:
-                        size_hint_y: None
-                        height: dp(48)
-                        spacing: dp(8)
-                        MDFlatButton:
-                            id: tx_date_btn
-                            text: 'Дата: сегодня'
-                            on_release: app.open_tx_date_picker()
+                        orientation: 'vertical'
+                        adaptive_height: True
+                        padding: dp(12)
+                        spacing: dp(6)
                         MDTextField:
-                            id: tx_note
-                            hint_text: 'Комментарий'
-                    MDRaisedButton:
-                        text: 'Добавить операцию'
-                        pos_hint: {'center_x': 0.5}
-                        on_release: app.add_transaction()
-                    MDLabel:
-                        text: 'История операций'
-                        theme_text_color: 'Secondary'
-                        size_hint_y: None
-                        height: dp(26)
-                    MDBoxLayout:
-                        size_hint_y: None
-                        height: dp(48)
-                        spacing: dp(8)
-                        Spinner:
-                            id: flt_type
-                            text: 'Все'
-                            values: ['Все', 'Доход', 'Расход']
-                            on_text: app.apply_filter()
-                        Spinner:
-                            id: flt_category
-                            text: 'Все'
-                            on_text: app.apply_filter()
-                    MDBoxLayout:
-                        size_hint_y: None
-                        height: dp(48)
-                        spacing: dp(8)
-                        MDFlatButton:
-                            id: flt_from_btn
-                            text: 'С: —'
-                            on_release: app.open_flt_from()
-                        MDFlatButton:
-                            id: flt_to_btn
-                            text: 'По: —'
-                            on_release: app.open_flt_to()
-                        MDFlatButton:
-                            text: 'Сброс'
-                            on_release: app.reset_flt()
-                    MDLabel:
-                        text: 'Нажмите на операцию, чтобы изменить или удалить'
-                        theme_text_color: 'Secondary'
-                        font_style: 'Caption'
-                        size_hint_y: None
-                        height: dp(26)
-                    ScrollView:
-                        MDList:
+                            id: tx_amount
+                            hint_text: 'Сумма'
+                            input_filter: 'float'
+                            size_hint_y: None
+                            height: dp(48)
+                        MDBoxLayout:
+                            size_hint_y: None
+                            height: dp(48)
+                            spacing: dp(8)
+                            Spinner:
+                                id: tx_type
+                                text: 'Расход'
+                                values: ['Расход', 'Доход']
+                            Spinner:
+                                id: tx_category
+                                text: 'Категория'
+                        MDBoxLayout:
+                            size_hint_y: None
+                            height: dp(48)
+                            spacing: dp(8)
+                            MDFlatButton:
+                                text: 'Добавить категорию'
+                                on_release: app.open_add_category()
+                            MDFlatButton:
+                                text: 'Удалить категорию'
+                                theme_text_color: 'Custom'
+                                text_color: 0.8, 0.2, 0.2, 1
+                                on_release: app.open_delete_category()
+                        MDBoxLayout:
+                            size_hint_y: None
+                            height: dp(48)
+                            spacing: dp(8)
+                            MDFlatButton:
+                                id: tx_date_btn
+                                text: 'Дата: сегодня'
+                                on_release: app.open_tx_date_picker()
+                            MDTextField:
+                                id: tx_note
+                                hint_text: 'Комментарий'
+                        MDRaisedButton:
+                            text: 'Добавить операцию'
+                            pos_hint: {'center_x': 0.5}
+                            on_release: app.add_transaction()
+                        MDLabel:
+                            text: 'История операций'
+                            theme_text_color: 'Secondary'
+                            size_hint_y: None
+                            height: dp(26)
+                        MDBoxLayout:
+                            size_hint_y: None
+                            height: dp(48)
+                            spacing: dp(8)
+                            Spinner:
+                                id: flt_type
+                                text: 'Все'
+                                values: ['Все', 'Доход', 'Расход']
+                                on_text: app.apply_filter()
+                            Spinner:
+                                id: flt_category
+                                text: 'Все'
+                                on_text: app.apply_filter()
+                        MDBoxLayout:
+                            size_hint_y: None
+                            height: dp(48)
+                            spacing: dp(8)
+                            MDFlatButton:
+                                id: flt_from_btn
+                                text: 'С: —'
+                                on_release: app.open_flt_from()
+                            MDFlatButton:
+                                id: flt_to_btn
+                                text: 'По: —'
+                                on_release: app.open_flt_to()
+                            MDFlatButton:
+                                text: 'Сброс'
+                                on_release: app.reset_flt()
+                        MDLabel:
+                            text: 'Нажмите на операцию, чтобы изменить или удалить'
+                            theme_text_color: 'Secondary'
+                            font_style: 'Caption'
+                            size_hint_y: None
+                            height: dp(26)
+                        MDBoxLayout:
                             id: tx_list
+                            orientation: 'vertical'
+                            adaptive_height: True
 
             MDBottomNavigationItem:
                 name: 'payments'
@@ -282,13 +288,15 @@ ScreenManager:
                         text: 'Создать цель'
                         pos_hint: {'center_x': 0.5}
                         on_release: app.add_goal()
+                    Spinner:
+                        id: goal_select
+                        text: 'Цель'
+                        size_hint_y: None
+                        height: dp(48)
                     MDBoxLayout:
                         size_hint_y: None
                         height: dp(48)
                         spacing: dp(8)
-                        Spinner:
-                            id: goal_select
-                            text: 'Цель'
                         MDTextField:
                             id: goal_amount
                             hint_text: 'Сумма пополнения'
@@ -296,7 +304,7 @@ ScreenManager:
                         MDRaisedButton:
                             text: 'Пополнить'
                             size_hint_x: None
-                            width: dp(120)
+                            width: dp(140)
                             on_release: app.contribute_goal()
                     MDLabel:
                         text: 'Нажмите на цель, чтобы изменить или удалить'
@@ -332,17 +340,25 @@ ScreenManager:
                             text: 'Сброс'
                             on_release: app.reset_an()
                     MDBoxLayout:
+                        orientation: 'vertical'
                         size_hint_y: None
-                        height: dp(48)
+                        height: dp(100)
                         spacing: dp(8)
                         MDRaisedButton:
                             text: 'Расходы по категориям'
+                            size_hint_x: 1
                             on_release: app.build_pie()
                         MDRaisedButton:
                             text: 'Динамика по месяцам'
+                            size_hint_x: 1
                             on_release: app.build_dynamics()
-                    Image:
-                        id: chart_img
+                    ScrollView:
+                        MDBoxLayout:
+                            id: chart_box
+                            orientation: 'vertical'
+                            adaptive_height: True
+                            padding: dp(4)
+                            spacing: dp(10)
 """
 
     class LoginScreen(MDScreen):
@@ -379,12 +395,26 @@ ScreenManager:
             self.flt_to = None           # фильтр истории: конец периода
             self.an_from = None          # аналитика: начало периода
             self.an_to = None            # аналитика: конец периода
+            self._cat_map = None         # кэш id->имя категории на время перерисовки
 
         def build(self):
             self.title = "Wallet"
             self.theme_cls.primary_palette = "Teal"
             self.theme_cls.theme_style = "Light"
             return Builder.load_string(KV)
+
+        def on_start(self):
+            # На Android 13+ для показа уведомлений нужно разрешение в рантайме.
+            self._request_android_permissions()
+
+        @staticmethod
+        def _request_android_permissions():
+            try:
+                from android.permissions import Permission, request_permissions
+
+                request_permissions([Permission.POST_NOTIFICATIONS])
+            except Exception:  # noqa: BLE001  # nosec B110 - не Android / модуль недоступен
+                pass  # на десктопе модуля android нет — разрешения не требуются
 
         # --- вспомогательное ---
 
@@ -438,6 +468,9 @@ ScreenManager:
         def _cat_name(self, category_id):
             if category_id is None:
                 return ""
+            # используем кэш, построенный в refresh_all (избегаем O(n^2) при отрисовке)
+            if self._cat_map is not None:
+                return self._cat_map.get(category_id, "")
             for c in self._categories():
                 if c.id == category_id:
                     return c.name
@@ -508,24 +541,16 @@ ScreenManager:
         # --- выбор даты ---
 
         def open_tx_date_picker(self):
-            from kivymd.uix.pickers import MDDatePicker
+            self._open_date_dialog(self.tx_date, self._set_tx_date)
 
-            picker = MDDatePicker()
-            picker.bind(on_save=self._on_tx_date_save)
-            picker.open()
-
-        def _on_tx_date_save(self, instance, value, date_range):
+        def _set_tx_date(self, value):
             self.tx_date = value
             self._main_ids().tx_date_btn.text = f"Дата: {value.strftime('%d.%m.%Y')}"
 
         def open_rem_date_picker(self):
-            from kivymd.uix.pickers import MDDatePicker
+            self._open_date_dialog(self.rem_date, self._set_rem_date)
 
-            picker = MDDatePicker()
-            picker.bind(on_save=self._on_rem_date_save)
-            picker.open()
-
-        def _on_rem_date_save(self, instance, value, date_range):
+        def _set_rem_date(self, value):
             self.rem_date = value
             self._main_ids().rem_date_btn.text = f"Срок: {value.strftime('%d.%m.%Y')}"
 
@@ -616,11 +641,50 @@ ScreenManager:
         # --- выбор диапазона дат ---
 
         def _pick(self, callback):
-            from kivymd.uix.pickers import MDDatePicker
+            self._open_date_dialog(date.today(), callback)
 
-            picker = MDDatePicker()
-            picker.bind(on_save=lambda inst, value, rng: callback(value))
-            picker.open()
+        def _open_date_dialog(self, initial, on_pick):
+            """Лёгкий выбор даты тремя спиннерами (быстрее тяжёлого MDDatePicker)."""
+            import calendar
+
+            base = initial or date.today()
+            years = [str(y) for y in range(2020, date.today().year + 3)]
+            day_sp = Spinner(text=str(base.day),
+                             values=[str(d) for d in range(1, 32)],
+                             size_hint_y=None, height=dp(44))
+            month_sp = Spinner(text=str(base.month),
+                               values=[str(m) for m in range(1, 13)],
+                               size_hint_y=None, height=dp(44))
+            year_sp = Spinner(text=str(base.year), values=years,
+                              size_hint_y=None, height=dp(44))
+            content = MDBoxLayout(orientation="horizontal", spacing=dp(8),
+                                  padding=dp(8), size_hint_y=None, height=dp(60))
+            content.add_widget(day_sp)
+            content.add_widget(month_sp)
+            content.add_widget(year_sp)
+
+            def confirm(*_):
+                try:
+                    year, month = int(year_sp.text), int(month_sp.text)
+                    day = min(int(day_sp.text), calendar.monthrange(year, month)[1])
+                    picked = date(year, month, day)
+                except (ValueError, TypeError):
+                    self._toast("Некорректная дата")
+                    return
+                self._dialog.dismiss()
+                on_pick(picked)
+
+            self._dialog = MDDialog(
+                title="Выбор даты (день / месяц / год)",
+                type="custom",
+                content_cls=content,
+                buttons=[
+                    MDFlatButton(text="Отмена",
+                                 on_release=lambda *_: self._dialog.dismiss()),
+                    MDRaisedButton(text="ОК", on_release=confirm),
+                ],
+            )
+            self._dialog.open()
 
         @staticmethod
         def _day_start(d):
@@ -1031,36 +1095,72 @@ ScreenManager:
 
         # --- аналитика ---
 
+        def _chart_title(self, text):
+            return MDLabel(text=text, bold=True, size_hint_y=None, height=dp(28))
+
         def build_pie(self):
-            path = self._data_dir() / "chart_pie.png"
-            try:
-                self.context.chart_service.expenses_pie(
-                    path, self._day_start(self.an_from), self._day_end(self.an_to))
-            except ImportError:
-                self._toast("Диаграммы недоступны: не установлен matplotlib")
+            """Структура расходов по категориям — нативные горизонтальные бары."""
+            data = self.context.analytics.expenses_by_category(
+                self._day_start(self.an_from), self._day_end(self.an_to))
+            box = self._main_ids().chart_box
+            box.clear_widgets()
+            box.add_widget(self._chart_title("Структура расходов по категориям"))
+            if not data:
+                box.add_widget(MDLabel(text="Нет данных", theme_text_color="Secondary",
+                                       size_hint_y=None, height=dp(28)))
                 return
-            self._set_chart(path)
+            total = sum(data.values())
+            maxv = max(data.values())
+            for name, value in sorted(data.items(), key=lambda kv: kv[1], reverse=True):
+                percent = float(value / total * 100)
+                row = MDBoxLayout(orientation="vertical", size_hint_y=None,
+                                  height=dp(50), spacing=dp(2))
+                row.add_widget(MDLabel(
+                    text=f"{name}: {value} ₽ ({percent:.0f}%)",
+                    size_hint_y=None, height=dp(24)))
+                row.add_widget(MDProgressBar(value=float(value / maxv * 100),
+                                             size_hint_y=None, height=dp(8)))
+                box.add_widget(row)
 
         def build_dynamics(self):
-            path = self._data_dir() / "chart_dyn.png"
-            try:
-                self.context.chart_service.dynamics_chart(
-                    path, self._day_start(self.an_from), self._day_end(self.an_to))
-            except ImportError:
-                self._toast("Диаграммы недоступны: не установлен matplotlib")
+            """Динамика доходов и расходов по месяцам — нативные бары."""
+            data = self.context.analytics.monthly_dynamics(
+                self._day_start(self.an_from), self._day_end(self.an_to))
+            box = self._main_ids().chart_box
+            box.clear_widgets()
+            box.add_widget(self._chart_title("Динамика по месяцам"))
+            if not data:
+                box.add_widget(MDLabel(text="Нет данных", theme_text_color="Secondary",
+                                       size_hint_y=None, height=dp(28)))
                 return
-            self._set_chart(path)
-
-        def _set_chart(self, path):
-            img = self._main_ids().chart_img
-            img.source = str(path)
-            img.reload()
+            maxv = max((max(inc, exp) for _, inc, exp in data), default=Decimal("1"))
+            maxv = maxv or Decimal("1")
+            for label, inc, exp in data:
+                row = MDBoxLayout(orientation="vertical", size_hint_y=None,
+                                  height=dp(86), spacing=dp(1))
+                row.add_widget(MDLabel(text=label, bold=True,
+                                       size_hint_y=None, height=dp(22)))
+                row.add_widget(MDLabel(text=f"Доход: {inc} ₽",
+                                       size_hint_y=None, height=dp(20)))
+                income_bar = MDProgressBar(value=float(inc / maxv * 100),
+                                           size_hint_y=None, height=dp(6))
+                income_bar.color = (0.30, 0.69, 0.31, 1)
+                row.add_widget(income_bar)
+                row.add_widget(MDLabel(text=f"Расход: {exp} ₽",
+                                       size_hint_y=None, height=dp(20)))
+                expense_bar = MDProgressBar(value=float(exp / maxv * 100),
+                                            size_hint_y=None, height=dp(6))
+                expense_bar.color = (0.90, 0.22, 0.21, 1)
+                row.add_widget(expense_bar)
+                box.add_widget(row)
 
         # --- обновление экранов ---
 
         def refresh_all(self):
             if not self.context:
                 return
+            # один проход по категориям на всю перерисовку (кэш для _cat_name)
+            self._cat_map = {c.id: c.name for c in self._categories()}
             self._populate_spinners()
             self._refresh_dashboard()
             self._refresh_transactions()
