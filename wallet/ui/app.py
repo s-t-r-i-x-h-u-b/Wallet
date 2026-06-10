@@ -535,8 +535,10 @@ ScreenManager:
             """
             try:
                 self.context.reminder_service.notify_due(self.context.notifier)
-            except Exception:  # noqa: BLE001  # nosec B110 - намеренный fail-safe
-                pass  # уведомления необязательны: их сбой не должен ломать вход
+            except Exception as exc:  # noqa: BLE001 - уведомления необязательны
+                from kivy.logger import Logger
+
+                Logger.warning("Wallet: не удалось отправить уведомления: %s", exc)
 
         # --- выбор даты ---
 
