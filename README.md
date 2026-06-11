@@ -55,6 +55,11 @@ pip install -r requirements.txt
 python -m wallet.ui.app
 ```
 
+## Сборка apk
+```bash
+docker run --rm -v "${PWD}:/home/user/hostcwd" -v "wallet_buildozer:/home/user/.buildozer" kivy/buildozer android debug
+```
+
 ## Тестирование
 
 ```bash
