@@ -89,7 +89,7 @@ def default_notifier() -> Notifier:
     if os.environ.get("ANDROID_ARGUMENT") is not None:
         try:
             return AndroidNotifier()
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001  # nosec B110 - откат к plyer/Null ниже
             pass
     try:
         import plyer  # noqa: F401
